@@ -1,6 +1,9 @@
 const { app, BrowserWindow, dialog, ipcMain, shell, Notification } = require('electron');
 const { spawn, execFileSync } = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
+const https = require('node:https');
+const os = require('node:os');
 const path = require('node:path');
 
 let mainWindow;
@@ -10,7 +13,7 @@ let currentProc = null;
 let jobCounter = 0;
 
 const lib = require('./lib');
-const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS } = lib;
+const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS, MODEL_FILES } = lib;
 const MIN_FREE_DISK_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
 // ---------- 设置持久化 ----------
@@ -104,6 +107,174 @@ function killProcessTree(proc) {
     }, 3000);
     if (typeof escalate.unref === 'function') escalate.unref();
   }
+}
+
+// ---------- 模型下载管理 ----------
+// 模型直接放进 torch 缓存目录（引擎从这里读取），路径规则与 torch.hub.get_dir() 一致
+function modelCacheDir() {
+  const cacheRoot = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+  return path.join(cacheRoot, 'torch', 'hub', 'checkpoints');
+}
+
+const modelDownloads = new Map(); // name → { request, received, total, cancelled }
+
+function modelPaths(name) {
+  const entry = MODEL_FILES[name];
+  return {
+    final: path.join(modelCacheDir(), entry.file),
+    part: path.join(modelCacheDir(), `${entry.file}.part`)
+  };
+}
+
+function fileSize(filePath) {
+  try { return fs.statSync(filePath).size; } catch { return 0; }
+}
+
+function modelStatus(name) {
+  const entry = MODEL_FILES[name];
+  const { final, part } = modelPaths(name);
+  const finalBytes = fileSize(final);
+  const partBytes = fileSize(part);
+  const active = modelDownloads.get(name);
+  return {
+    name,
+    label: entry.label,
+    totalBytes: entry.bytes,
+    ready: finalBytes === entry.bytes,
+    partBytes,
+    downloading: Boolean(active),
+    percent: active
+      ? lib.downloadPercent(active.received, entry.bytes)
+      : (partBytes ? lib.downloadPercent(partBytes, entry.bytes) : (finalBytes === entry.bytes ? 100 : 0))
+  };
+}
+
+function broadcastModel(name, extra) {
+  send('model-progress', { ...modelStatus(name), ...extra });
+}
+
+// 对已有文件流式计算 SHA256（续传时需先吃掉 .part 的已有内容）
+function hashFile(filePath, hash) {
+  return new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', resolve);
+    stream.on('error', reject);
+  });
+}
+
+async function startModelDownload(name) {
+  const entry = MODEL_FILES[name];
+  if (!entry) throw new Error('未知模型');
+  if (modelDownloads.has(name)) return modelStatus(name);
+  const { final, part } = modelPaths(name);
+  if (fileSize(final) === entry.bytes) return modelStatus(name);
+  fs.mkdirSync(modelCacheDir(), { recursive: true });
+
+  // 大小异常的 .part（比如注册表升级后残留）直接作废重下
+  let partBytes = fileSize(part);
+  if (partBytes >= entry.bytes) { try { fs.rmSync(part, { force: true }); } catch { /* non-fatal */ } partBytes = 0; }
+
+  const hash = crypto.createHash('sha256');
+  if (partBytes) await hashFile(part, hash);
+
+  const state = { request: null, received: partBytes, total: entry.bytes, cancelled: false };
+  modelDownloads.set(name, state);
+
+  const range = lib.resumeRange(partBytes);
+  const request = https.get(entry.url, { headers: range ? { Range: range } : {}, timeout: 30000 }, (response) => {
+    // 416 = 服务器认为范围无效；作废 .part 从头再来
+    if (response.statusCode === 416 || (range && response.statusCode === 200)) {
+      response.resume();
+      modelDownloads.delete(name);
+      try { fs.rmSync(part, { force: true }); } catch { /* non-fatal */ }
+      startModelDownload(name).catch((error) => broadcastModel(name, { error: lib.classifyDownloadFailure(error) }));
+      return;
+    }
+    if (response.statusCode !== 200 && response.statusCode !== 206) {
+      response.resume();
+      modelDownloads.delete(name);
+      broadcastModel(name, { error: lib.classifyDownloadFailure(`HTTP ${response.statusCode}`) });
+      return;
+    }
+
+    const sink = fs.createWriteStream(part, { flags: partBytes ? 'a' : 'w' });
+    let lastSent = 0;
+    response.on('data', (chunk) => {
+      hash.update(chunk);
+      state.received += chunk.length;
+      const now = Date.now();
+      if (now - lastSent > 400) { lastSent = now; broadcastModel(name); }
+    });
+    response.pipe(sink);
+
+    sink.on('finish', () => {
+      modelDownloads.delete(name);
+      if (state.cancelled) return broadcastModel(name, { info: '已暂停，可继续下载' });
+      const digest = hash.digest('hex');
+      if (fileSize(part) !== entry.bytes || !lib.verifyModelDigest(name, digest)) {
+        try { fs.rmSync(part, { force: true }); } catch { /* non-fatal */ }
+        broadcastModel(name, { error: '文件校验失败，已删除损坏文件，请重新下载。' });
+        return;
+      }
+      fs.renameSync(part, final);
+      broadcastModel(name, { info: '下载完成，校验通过' });
+    });
+
+    response.on('error', (error) => {
+      modelDownloads.delete(name);
+      try { sink.close(); } catch { /* non-fatal */ }
+      broadcastModel(name, state.cancelled ? { info: '已暂停，可继续下载' } : { error: lib.classifyDownloadFailure(error) });
+    });
+  });
+
+  state.request = request;
+  request.on('timeout', () => request.destroy(new Error('ETIMEDOUT')));
+  request.on('error', (error) => {
+    modelDownloads.delete(name);
+    broadcastModel(name, state.cancelled ? { info: '已暂停，可继续下载' } : { error: lib.classifyDownloadFailure(error) });
+  });
+  broadcastModel(name);
+  return modelStatus(name);
+}
+
+function cancelModelDownload(name) {
+  const active = modelDownloads.get(name);
+  if (active) {
+    active.cancelled = true;
+    try { active.request.destroy(new Error('aborted')); } catch { /* non-fatal */ }
+    modelDownloads.delete(name);
+  }
+  broadcastModel(name, { info: '已暂停，可继续下载' });
+  return modelStatus(name);
+}
+
+// 离线导入：校验后放入缓存目录（filePath 为空时弹出选择框）
+async function importModel(name, filePath) {
+  const entry = MODEL_FILES[name];
+  if (!entry) throw new Error('未知模型');
+  let source = filePath;
+  if (!source) {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: `选择${entry.label}文件（${entry.file}）`,
+      properties: ['openFile'],
+      filters: [{ name: '模型文件', extensions: ['th'] }]
+    });
+    if (canceled) return modelStatus(name);
+    source = filePaths[0];
+  }
+  if (fileSize(source) !== entry.bytes) {
+    return { ...modelStatus(name), error: `文件大小不符（应为 ${(entry.bytes / 1024 / 1024).toFixed(0)} MB），请确认选择的是 ${entry.file}。` };
+  }
+  const hash = crypto.createHash('sha256');
+  await hashFile(source, hash);
+  if (!lib.verifyModelDigest(name, hash.digest('hex'))) {
+    return { ...modelStatus(name), error: '文件校验失败，内容与官方模型不一致。' };
+  }
+  fs.mkdirSync(modelCacheDir(), { recursive: true });
+  fs.copyFileSync(source, modelPaths(name).final);
+  broadcastModel(name, { info: '导入成功，校验通过' });
+  return modelStatus(name);
 }
 
 // ---------- 任务队列 ----------
@@ -369,6 +540,14 @@ ipcMain.handle('cancel-separation', () => {
 });
 
 ipcMain.handle('open-path', (_event, target) => shell.openPath(target));
+
+ipcMain.handle('models-status', () => Object.keys(MODEL_FILES).map((name) => modelStatus(name)));
+
+ipcMain.handle('model-download', (_event, name) => startModelDownload(name));
+
+ipcMain.handle('model-download-cancel', (_event, name) => cancelModelDownload(name));
+
+ipcMain.handle('model-import', (_event, name, filePath) => importModel(name, filePath || null));
 
 ipcMain.handle('app-version', () => app.getVersion());
 

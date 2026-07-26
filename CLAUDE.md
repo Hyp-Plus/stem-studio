@@ -1,6 +1,6 @@
 # Stem Studio — Claude Code 项目说明
 
-本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.8.0。
+本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.9.0。
 
 ## 常用命令
 
@@ -18,7 +18,7 @@ powershell -File scripts/build-engine-win.ps1   # Windows 引擎（demucs-onnx+D
 
 ## 架构
 
-- `src/lib.js` — 纯逻辑（无 Electron 依赖，唯一有单测的层）：demucs 参数组装 `buildDemucsArgs`、进度状态机 `nextProgress`、错误归类 `classifyFailure`、设置白名单 `sanitizeSettings`
+- `src/lib.js` — 纯逻辑（无 Electron 依赖，唯一有单测的层）：demucs 参数组装 `buildDemucsArgs`、进度状态机 `nextProgress`、错误归类 `classifyFailure`、设置白名单 `sanitizeSettings`、模型注册表 `MODEL_FILES`（URL/SHA256/大小）与下载辅助（`resumeRange`/`downloadPercent`/`verifyModelDigest`/`classifyDownloadFailure`）
 - `src/main.js` — 主进程：任务队列调度（顺序处理，运行中可追加）、引擎发现、进程树终止（win: taskkill /T /F；posix: detached + 负 pid 进程组 + SIGKILL 兜底）、MPS 失败自动回退 CPU 一次、设置/历史持久化（userData/settings.json、history.json 上限 50 条）、系统通知
 - `src/preload.js` — contextBridge 暴露 `window.stemStudio`（含 webUtils.getPathForFile 供拖拽取路径）
 - `src/renderer.js` — UI 状态、拖拽、队列/历史渲染、ETA 估算、设置面板
@@ -36,9 +36,8 @@ powershell -File scripts/build-engine-win.ps1   # Windows 引擎（demucs-onnx+D
 
 ## 当前重要待办（按优先级）
 
-1. Windows 实机验证：跑 `scripts/build-engine-win.ps1`（或 CI 的 build-engine 工作流），验证 DML 执行器在 htdemucs 上可用（mac 的 CoreML 就编译失败，不能想当然）、NSIS 打包接入 `engine-dist/Scripts`
-2. 引擎分发 P3：应用内模型下载管理（SHA256 校验、断点续传、离线导入；现状是原版引擎首次分离自动下载到 ~/.cache/torch）
-3. P4 附带静态 ffmpeg → P5 签名/notarization + CI 出正式安装包
+1. Windows 实机验证：跑 `scripts/build-engine-win.ps1`（或 CI 的 build-engine 工作流），验证 DML 执行器在 htdemucs 上可用（mac 的 CoreML 就编译失败，不能想当然）、NSIS 打包接入 `engine-dist/Scripts`；注意 Windows 引擎走 demucs_onnx，模型格式是 .onnx 而非 .th，P3 的模型管理需在 Windows 路线落地时扩展注册表
+2. P4 附带静态 ffmpeg → P5 签名/notarization + CI 出正式安装包
 4. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板
 
 已完成（2026-07-26 第二轮会话）：端到端实测全通过并修复失败原因不展示缺陷（v0.7.0）；UI 微调；引擎分发 P1 质量对比（`docs/引擎分发-P1-质量对比.md`）与 P2 打包接入（`docs/引擎分发-P2-打包接入.md`）——macOS 选定冻结原版 demucs 保 MPS（打包版已实测：自动发现内置引擎、45s 音频 17s、总体积 818M），Windows 构建链就绪（shim+脚本+CI）待实机。

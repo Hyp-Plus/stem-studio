@@ -278,6 +278,57 @@ $('default-output-clear-button').addEventListener('click', async () => {
 $('format-select').addEventListener('change', () => window.stemStudio.setSettings({ format: $('format-select').value }));
 $('performance-select').addEventListener('change', () => window.stemStudio.setSettings({ performance: $('performance-select').value }));
 
+// ---------- 模型管理 ----------
+const modelState = new Map(); // name → 最新状态
+
+function formatMb(bytes) { return `${Math.round(bytes / 1024 / 1024)} MB`; }
+
+function modelStatusText(status) {
+  if (status.ready) return '已就绪';
+  if (status.downloading) return `下载中 ${status.percent == null ? '' : status.percent + '%'}`;
+  if (status.partBytes) return `已暂停 ${status.percent}%`;
+  return '未下载';
+}
+
+function renderModels() {
+  const list = $('model-list');
+  if (!modelState.size) { list.innerHTML = '<p class="file-list-empty">正在读取模型状态…</p>'; return; }
+  list.innerHTML = Array.from(modelState.values()).map((status) => {
+    const chipClass = status.ready ? 'done' : (status.downloading ? 'running' : 'pending');
+    const buttons = status.ready
+      ? ''
+      : status.downloading
+        ? `<button class="model-cancel" data-model="${status.name}">暂停</button>`
+        : `<button class="model-download" data-model="${status.name}">${status.partBytes ? '继续下载' : '下载'}</button><button class="model-import" data-model="${status.name}">离线导入</button>`;
+    const note = status.error
+      ? `<span class="row-detail" title="${escapeHtml(status.error)}">${escapeHtml(status.error)}</span>` : '';
+    return `<div class="row"><span class="row-name">${escapeHtml(status.label)} · ${formatMb(status.totalBytes)}</span><span class="chip ${chipClass}">${modelStatusText(status)}</span>${buttons}${note}</div>`;
+  }).join('');
+  list.querySelectorAll('.model-download').forEach((button) => button.addEventListener('click', () =>
+    window.stemStudio.modelDownload(button.dataset.model).catch((error) => setNotice(error.message, true))));
+  list.querySelectorAll('.model-cancel').forEach((button) => button.addEventListener('click', () =>
+    window.stemStudio.modelDownloadCancel(button.dataset.model)));
+  list.querySelectorAll('.model-import').forEach((button) => button.addEventListener('click', async () => {
+    const status = await window.stemStudio.modelImport(button.dataset.model);
+    if (status && status.error) { modelState.set(status.name, status); renderModels(); }
+  }));
+}
+
+async function refreshModels() {
+  try {
+    const statuses = await window.stemStudio.modelsStatus();
+    statuses.forEach((status) => modelState.set(status.name, status));
+    renderModels();
+  } catch { /* 模型状态读取失败不影响主流程 */ }
+}
+
+window.stemStudio.onModelProgress((status) => {
+  modelState.set(status.name, status);
+  renderModels();
+  if (status.error) setNotice(`模型下载：${status.error}`, true);
+  else if (status.info) setNotice(`${status.label}：${status.info}`);
+});
+
 // ---------- 快捷键 ----------
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' || state.running) return;
@@ -312,6 +363,7 @@ async function checkEngine() {
     state.stemOptions = stemOptions;
     renderStems();
     refreshHistory();
+    refreshModels();
     window.stemStudio.appVersion().then((version) => { $('app-version').textContent = `v${version}`; }).catch(() => {});
   } catch { /* 初始化失败不阻塞界面 */ }
   checkEngine();

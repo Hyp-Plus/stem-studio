@@ -17,6 +17,24 @@ const FORMAT_ARGS = { wav: [], mp3: ['--mp3', '--mp3-bitrate', '320'], flac: ['-
 const FORMAT_EXT = { wav: '.wav', mp3: '.mp3', flac: '.flac' };
 const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'six-stems', windowBounds: null };
 
+// 分离模型注册表：文件名第二段即官方 SHA256 前 8 位，完整校验和用于下载与导入验证
+const MODEL_FILES = {
+  htdemucs: {
+    file: '955717e8-8726e21a.th',
+    url: 'https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th',
+    sha256: '8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4',
+    bytes: 84141911,
+    label: '标准四轨模型'
+  },
+  htdemucs_6s: {
+    file: '5c90dfd2-34c22ccb.th',
+    url: 'https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th',
+    sha256: '34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd',
+    bytes: 54996327,
+    label: '高质量六轨模型'
+  }
+};
+
 function isVideoPath(filePath) {
   const dot = filePath.lastIndexOf('.');
   const extension = dot >= 0 ? filePath.slice(dot).toLowerCase() : '';
@@ -71,6 +89,34 @@ function classifyFailure(log, isVideo) {
   return null;
 }
 
+// 断点续传：已有部分文件时生成 HTTP Range 头；从头下载返回 null
+function resumeRange(partBytes) {
+  return Number.isFinite(partBytes) && partBytes > 0 ? `bytes=${partBytes}-` : null;
+}
+
+// 下载进度百分比（0–100，总大小未知时返回 null）
+function downloadPercent(receivedBytes, totalBytes) {
+  if (!Number.isFinite(totalBytes) || totalBytes <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((receivedBytes / totalBytes) * 100)));
+}
+
+// 校验下载/导入文件的完整 SHA256 是否与注册表一致
+function verifyModelDigest(model, hexDigest) {
+  const entry = MODEL_FILES[model];
+  return Boolean(entry && typeof hexDigest === 'string' && hexDigest.toLowerCase() === entry.sha256);
+}
+
+// 把模型下载失败翻译成中文提示
+function classifyDownloadFailure(reason) {
+  const text = String(reason && reason.message ? reason.message : reason || '');
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(text)) return '无法连接下载服务器，请检查网络后重试。';
+  if (/ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|EPIPE|aborted/i.test(text)) return '网络连接中断，已保留进度，可点击“继续下载”续传。';
+  if (/ENOSPC/i.test(text)) return '磁盘空间不足，请清理后重试。';
+  if (/416/.test(text)) return '服务器不支持续传，已重新开始下载。';
+  if (/HTTP (\d{3})/.test(text)) return `下载服务器返回错误（${text.match(/HTTP (\d{3})/)[1]}），请稍后重试。`;
+  return `下载失败：${text.slice(0, 120) || '未知错误'}`;
+}
+
 // 只保留白名单内的设置键
 function sanitizeSettings(patch) {
   const allowed = {};
@@ -88,10 +134,15 @@ module.exports = {
   FORMAT_ARGS,
   FORMAT_EXT,
   DEFAULT_SETTINGS,
+  MODEL_FILES,
   isVideoPath,
   modelForMode,
   buildDemucsArgs,
   nextProgress,
   classifyFailure,
-  sanitizeSettings
+  sanitizeSettings,
+  resumeRange,
+  downloadPercent,
+  verifyModelDigest,
+  classifyDownloadFailure
 };

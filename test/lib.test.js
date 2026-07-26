@@ -102,3 +102,46 @@ test('sanitizeSettings：过滤白名单外的键', () => {
   assert.deepEqual(clean, { format: 'flac', enginePath: '/usr/bin/demucs' });
   assert.deepEqual(lib.sanitizeSettings(null), {});
 });
+
+test('MODEL_FILES：注册表自洽（文件名内嵌 SHA256 前 8 位、覆盖两种模式）', () => {
+  for (const mode of ['four-stems', 'six-stems']) {
+    assert.ok(lib.MODEL_FILES[lib.modelForMode(mode)], `${mode} 应有对应模型`);
+  }
+  for (const [name, entry] of Object.entries(lib.MODEL_FILES)) {
+    assert.match(entry.sha256, /^[0-9a-f]{64}$/, `${name} 校验和应为 64 位十六进制`);
+    const embedded = entry.file.split('-')[1].slice(0, 8);
+    assert.equal(entry.sha256.slice(0, 8), embedded, `${name} 文件名应内嵌校验和前 8 位`);
+    assert.ok(entry.url.endsWith(entry.file));
+    assert.ok(entry.bytes > 1024 * 1024);
+  }
+});
+
+test('resumeRange：有部分文件时生成 Range 头，否则 null', () => {
+  assert.equal(lib.resumeRange(1024), 'bytes=1024-');
+  assert.equal(lib.resumeRange(0), null);
+  assert.equal(lib.resumeRange(NaN), null);
+  assert.equal(lib.resumeRange(undefined), null);
+});
+
+test('downloadPercent：百分比钳制与未知总量', () => {
+  assert.equal(lib.downloadPercent(50, 200), 25);
+  assert.equal(lib.downloadPercent(300, 200), 100);
+  assert.equal(lib.downloadPercent(10, 0), null);
+  assert.equal(lib.downloadPercent(10, NaN), null);
+});
+
+test('verifyModelDigest：完整校验和匹配注册表', () => {
+  const good = lib.MODEL_FILES.htdemucs.sha256;
+  assert.equal(lib.verifyModelDigest('htdemucs', good), true);
+  assert.equal(lib.verifyModelDigest('htdemucs', good.toUpperCase()), true);
+  assert.equal(lib.verifyModelDigest('htdemucs', good.replace(/^./, '0')), good.startsWith('0'));
+  assert.equal(lib.verifyModelDigest('nope', good), false);
+});
+
+test('classifyDownloadFailure：网络错误归类为中文提示', () => {
+  assert.match(lib.classifyDownloadFailure(new Error('getaddrinfo ENOTFOUND dl.fbaipublicfiles.com')), /无法连接/);
+  assert.match(lib.classifyDownloadFailure(new Error('read ECONNRESET')), /续传/);
+  assert.match(lib.classifyDownloadFailure(new Error('ENOSPC: no space left')), /磁盘空间/);
+  assert.match(lib.classifyDownloadFailure(new Error('HTTP 503')), /503/);
+  assert.match(lib.classifyDownloadFailure('奇怪的错误'), /下载失败/);
+});
