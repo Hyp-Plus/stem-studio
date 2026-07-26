@@ -119,6 +119,12 @@ function selectedStems() {
 
 document.querySelectorAll('input[name="mode"]').forEach((radio) => radio.addEventListener('change', renderStems));
 
+$('stems-toggle').addEventListener('click', () => {
+  const boxes = Array.from(document.querySelectorAll('#stems input'));
+  const allChecked = boxes.every((box) => box.checked);
+  boxes.forEach((box) => { box.checked = !allChecked; });
+});
+
 // ---------- 导出位置 ----------
 $('output-button').addEventListener('click', async () => {
   const folder = await window.stemStudio.pickOutput();
@@ -239,6 +245,8 @@ $('clear-history-button').addEventListener('click', async () => {
 
 // ---------- 设置 ----------
 function applySettings(settings) {
+  const lastMode = document.querySelector(`input[name="mode"][value="${settings.lastMode}"]`);
+  if (lastMode) lastMode.checked = true;
   $('engine-path').textContent = settings.enginePath || '自动检测';
   $('default-output-path').textContent = settings.defaultOutputDir || '与源文件同目录';
   $('format-select').value = settings.format || 'wav';

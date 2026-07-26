@@ -346,6 +346,7 @@ ipcMain.handle('start-separation', async (_event, options) => {
       retriedCpu: false
     });
   }
+  try { saveSettings({ lastMode: (options && options.mode) || 'six-stems' }); } catch { /* non-fatal */ }
   broadcastQueue();
   processQueue();
   return { queued: inputs.length };
@@ -371,9 +372,12 @@ ipcMain.handle('app-version', () => app.getVersion());
 
 // ---------- 生命周期 ----------
 function createWindow() {
+  const saved = loadSettings().windowBounds;
+  const bounds = saved && Number.isFinite(saved.width) && Number.isFinite(saved.height)
+    ? { width: Math.max(900, saved.width), height: Math.max(640, saved.height), x: saved.x, y: saved.y }
+    : { width: 1120, height: 760 };
   mainWindow = new BrowserWindow({
-    width: 1120,
-    height: 760,
+    ...bounds,
     minWidth: 900,
     minHeight: 640,
     titleBarStyle: 'hiddenInset',
@@ -384,6 +388,9 @@ function createWindow() {
     }
   });
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.on('close', () => {
+    try { saveSettings({ windowBounds: mainWindow.getBounds() }); } catch { /* non-fatal */ }
+  });
 }
 
 function stopEverything() {

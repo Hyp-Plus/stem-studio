@@ -15,7 +15,7 @@ const PERFORMANCE_PROFILES = {
 const VIDEO_EXTENSION_LIST = ['.mp4', '.mov', '.mkv', '.m4v'];
 const FORMAT_ARGS = { wav: [], mp3: ['--mp3', '--mp3-bitrate', '320'], flac: ['--flac'] };
 const FORMAT_EXT = { wav: '.wav', mp3: '.mp3', flac: '.flac' };
-const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced' };
+const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'six-stems', windowBounds: null };
 
 function isVideoPath(filePath) {
   const dot = filePath.lastIndexOf('.');
