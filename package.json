@@ -1,6 +1,6 @@
 {
   "name": "stem-studio",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Offline music and voice stem separation for macOS and Windows",
   "main": "src/main.js",
   "scripts": {
@@ -36,11 +36,17 @@
         ]
       }
     ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": false
     },
     "win": {
       "target": [
@@ -54,7 +60,13 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Stem Studio",
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ]
     }
   },
   "devDependencies": {

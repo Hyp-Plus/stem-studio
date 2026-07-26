@@ -1,0 +1,111 @@
+# 发布构建：双平台「冻结引擎 → electron-builder 打包」
+# - 手动触发（workflow_dispatch）：产出安装包 artifact，用于验证/试装
+# - 推 v* 标签：额外创建 GitHub Release 草稿并附上安装包
+# 签名按 secrets 自动降级：未配置证书时产出未签名构建（本地右键打开可用）。
+# 证书配置步骤见 docs/发布-P5-签名与公证.md
+name: 发布构建
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  macos:
+    name: macOS 安装包（dmg）
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: 缓存冻结引擎
+        id: engine-cache
+        uses: actions/cache@v4
+        with:
+          path: engine-dist
+          key: engine-mac-${{ hashFiles('scripts/build-engine-mac.sh', 'engine/**') }}
+      - name: 构建引擎
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        run: bash scripts/build-engine-mac.sh
+      - name: 安装依赖
+        run: npm ci
+      - name: 打包（有证书则签名+公证，否则未签名）
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ]; then
+            echo "检测到签名证书：签名 + 公证"
+            npx electron-builder --mac --publish never -c.mac.notarize=true
+          else
+            echo "未配置签名证书：产出未签名构建"
+            npx electron-builder --mac --publish never
+          fi
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: stem-studio-macos
+          path: dist/*.dmg
+          retention-days: 3
+      - name: 附到 Release（仅标签触发）
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --draft --title "Stem Studio ${GITHUB_REF_NAME}" --generate-notes dist/*.dmg || gh release upload "${GITHUB_REF_NAME}" dist/*.dmg
+
+  windows:
+    name: Windows 安装包（nsis）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: 缓存冻结引擎
+        id: engine-cache
+        uses: actions/cache@v4
+        with:
+          path: engine-dist
+          key: engine-win-${{ hashFiles('scripts/build-engine-win.ps1', 'engine/**') }}
+      - name: 构建引擎
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./scripts/build-engine-win.ps1
+      - name: 安装依赖
+        run: npm ci
+      - name: 打包（有证书则签名，否则未签名）
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          if ($env:WIN_CSC_LINK) { Write-Host "检测到签名证书：签名构建" }
+          else { Write-Host "未配置签名证书：产出未签名构建" }
+          npx electron-builder --win --publish never
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: stem-studio-windows
+          path: dist/*.exe
+          retention-days: 3
+      - name: 附到 Release（仅标签触发）
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
+          gh release upload "$env:GITHUB_REF_NAME" $exe.FullName
+          if ($LASTEXITCODE -ne 0) { gh release create "$env:GITHUB_REF_NAME" --draft --title "Stem Studio $env:GITHUB_REF_NAME" --generate-notes $exe.FullName }
