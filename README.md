@@ -2,9 +2,9 @@
   <img src="assets/icon-512.png" width="128" alt="Stem Studio 图标" />
 </p>
 
-<h1 align="center">Stem Studio</h1>
+<h1 align="center">【Stem Studio】开源音频分离器</h1>
 
-<p align="center">把声音拆开，听见每一层。<br/>本地运行的 Demucs 音频/视频分轨桌面应用（macOS / Windows）——所有文件在本机处理，不上传网络。</p>
+<p align="center">把声音拆开，听见每一层。<br/>本地离线把歌曲拆成人声、鼓、贝斯、钢琴、吉他等独立音轨——Demucs 驱动的桌面应用（macOS / Windows），所有文件在本机处理，不上传网络。</p>
 
 <p align="center">
   <img src="assets/screenshot.png" width="720" alt="应用界面" />
