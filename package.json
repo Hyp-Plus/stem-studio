@@ -1,6 +1,6 @@
 {
   "name": "stem-studio",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Offline music and voice stem separation for macOS and Windows",
   "main": "src/main.js",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "build": {
     "appId": "com.stemstudio.app",
-    "productName": "Stem Studio v0.1",
+    "productName": "Stem Studio",
     "electronDist": "node_modules/electron/dist",
     "files": [
       "src/**/*",
