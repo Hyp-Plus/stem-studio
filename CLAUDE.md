@@ -37,7 +37,8 @@ npm run prepare:ffmpeg              # 整理静态 ffmpeg/ffprobe 到 ffmpeg-dis
 
 ## 当前重要待办（按优先级）
 
-1. Windows 收尾：CI 构建已通过（产物 144M，DmlExecutionProvider 已注册，artifact `engine-windows-dml`），剩 GPU 实机冒烟（CI 无独显，DML 走 WARP）、NSIS 打包接入 `engine-dist/Scripts`、P3 模型注册表扩展 .onnx 格式（Windows 引擎走 demucs_onnx，模型是 .onnx 而非 .th）。仓库远程：github.com/Hyp-Plus/stem-studio（私有）
+1. Windows 收尾：CI 构建与 NSIS 安装包均已通过（`release.yml` 产出 win-x64.exe 172M artifact），剩 GPU 实机冒烟（CI 无独显，DML 走 WARP）、P3 模型注册表扩展 .onnx 格式（Windows 引擎走 demucs_onnx，模型是 .onnx 而非 .th）。仓库远程：github.com/Hyp-Plus/stem-studio（私有）
+2. P5 收尾：脚手架与发布流水线已就绪并 CI 实测（双平台安装包 artifact），只差证书——申请 Apple Developer Program 后按 `docs/发布-P5-签名与公证.md` 配 secrets 即可，代码零改动
 2. P5 签名/notarization + CI 出正式安装包（本机无 Developer ID 证书）
 3. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板
 
