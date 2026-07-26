@@ -7,13 +7,14 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div id="drop-overlay" hidden><p>松开以导入文件</p></div>
+    <div id="drop-overlay" hidden><p>松开以添加文件</p></div>
     <main>
       <header><span class="mark">S</span><div><h1>Stem Studio</h1><p>离线音频分离</p></div><span id="engine" class="engine">正在检测引擎…</span></header>
       <section class="hero"><p class="eyebrow">DEM U C S · 本地处理</p><h2>把声音拆开，听见每一层。</h2><p>所有文件都在你的电脑上处理，不会上传到网络。</p></section>
       <section class="panel">
-        <label class="label">源文件</label>
-        <button id="input-button" class="file-picker"><span id="input-name">选择音频或视频文件，或直接拖入窗口</span><span>浏览</span></button>
+        <label class="label">源文件（可多选，或直接拖入窗口；任务进行中拖入会加入队列）</label>
+        <div id="file-list" class="file-list"><p class="file-list-empty">还没有文件，点击下方“添加文件”或直接拖入。</p></div>
+        <div class="file-actions"><button id="input-button">添加文件</button><button id="clear-files-button" hidden>清空列表</button></div>
         <div class="divider"></div>
         <label class="label">分离模式</label>
         <div class="modes">
@@ -43,8 +44,13 @@
         <label class="label">导出位置</label>
         <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
         <div id="progress-area" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
-        <div class="actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消</button><button id="open-button" hidden>打开导出文件夹</button></div>
+        <div class="actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消全部</button><button id="open-button" hidden>打开导出文件夹</button></div>
       </section>
+      <details class="settings">
+        <summary>任务历史</summary>
+        <div id="history-list" class="history"><p class="file-list-empty">暂无历史记录。</p></div>
+        <div class="setting-row"><span class="setting-value"></span><button id="clear-history-button">清空历史</button></div>
+      </details>
       <details class="settings">
         <summary>设置</summary>
         <label class="label">Demucs 引擎路径</label>
