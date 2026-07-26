@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stem Studio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="drop-overlay" hidden><p>松开以导入文件</p></div>
+    <main>
+      <header><span class="mark">S</span><div><h1>Stem Studio</h1><p>离线音频分离</p></div><span id="engine" class="engine">正在检测引擎…</span></header>
+      <section class="hero"><p class="eyebrow">DEM U C S · 本地处理</p><h2>把声音拆开，听见每一层。</h2><p>所有文件都在你的电脑上处理，不会上传到网络。</p></section>
+      <section class="panel">
+        <label class="label">源文件</label>
+        <button id="input-button" class="file-picker"><span id="input-name">选择音频或视频文件，或直接拖入窗口</span><span>浏览</span></button>
+        <div class="divider"></div>
+        <label class="label">分离模式</label>
+        <div class="modes">
+          <label><input type="radio" name="mode" value="six-stems" checked /><b>高质量六轨</b><small>人声、钢琴、吉他、贝斯、鼓、其他</small></label>
+          <label><input type="radio" name="mode" value="four-stems" /><b>标准四轨</b><small>人声、鼓、贝斯、其他</small></label>
+        </div>
+        <label class="label">导出音轨（默认全部）</label>
+        <div id="stems" class="stems"></div>
+        <div class="options-row">
+          <div>
+            <label class="label" for="format-select">导出格式</label>
+            <select id="format-select">
+              <option value="wav">WAV（无损）</option>
+              <option value="flac">FLAC（无损压缩）</option>
+              <option value="mp3">MP3 320kbps</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="performance-select">性能档位</label>
+            <select id="performance-select">
+              <option value="fast">快速（1 遍）</option>
+              <option value="balanced">均衡（2 遍）</option>
+              <option value="best">极致（10 遍，最慢）</option>
+            </select>
+          </div>
+        </div>
+        <label class="label">导出位置</label>
+        <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
+        <div id="progress-area" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
+        <div class="actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消</button><button id="open-button" hidden>打开导出文件夹</button></div>
+      </section>
+      <details class="settings">
+        <summary>设置</summary>
+        <label class="label">Demucs 引擎路径</label>
+        <div class="setting-row">
+          <span id="engine-path" class="setting-value">自动检测</span>
+          <button id="engine-button">选择引擎</button>
+          <button id="engine-clear-button">恢复自动</button>
+        </div>
+        <label class="label">默认导出位置</label>
+        <div class="setting-row">
+          <span id="default-output-path" class="setting-value">与源文件同目录</span>
+          <button id="default-output-button">选择</button>
+          <button id="default-output-clear-button">恢复默认</button>
+        </div>
+      </details>
+      <p id="notice" class="notice">提示：高质量六轨会使用更多时间和内存。</p>
+      <footer>铃铛出品 · Stem Studio</footer>
+    </main>
+    <script src="renderer.js"></script>
+  </body>
+</html>
