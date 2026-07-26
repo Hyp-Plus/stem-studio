@@ -34,6 +34,8 @@ jobs:
         run: bash scripts/build-engine-mac.sh
       - name: 安装依赖
         run: npm ci
+      - name: 准备内置 FFmpeg
+        run: npm run prepare:ffmpeg
       - name: 打包（有证书则签名+公证，否则未签名）
         env:
           CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
@@ -42,7 +44,12 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          if [ -n "$CSC_LINK" ]; then
+          # Actions 会把缺失的 secret 注入为空字符串，而 electron-builder 只判
+          # "已定义"，空 CSC_LINK 会被当成证书路径报 "not a file"——先清掉空值
+          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "$(eval echo \$$v)" ]; then unset "$v"; fi
+          done
+          if [ -n "${CSC_LINK:-}" ]; then
             echo "检测到签名证书：签名 + 公证"
             npx electron-builder --mac --publish never -c.mac.notarize=true
           else
@@ -85,12 +92,18 @@ jobs:
         run: ./scripts/build-engine-win.ps1
       - name: 安装依赖
         run: npm ci
+      - name: 准备内置 FFmpeg
+        run: npm run prepare:ffmpeg
       - name: 打包（有证书则签名，否则未签名）
         shell: pwsh
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: |
+          # 缺失的 secret 会注入为空字符串，清掉以免 electron-builder 误判
+          foreach ($v in "WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD") {
+            if (-not (Get-Item "Env:$v" -ErrorAction SilentlyContinue).Value) { Remove-Item "Env:$v" -ErrorAction SilentlyContinue }
+          }
           if ($env:WIN_CSC_LINK) { Write-Host "检测到签名证书：签名构建" }
           else { Write-Host "未配置签名证书：产出未签名构建" }
           npx electron-builder --win --publish never
