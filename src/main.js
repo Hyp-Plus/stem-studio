@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, Notification } = require('electron');
 const { spawn, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -213,6 +213,14 @@ function processQueue() {
         total: queue.length,
         lastOutput: doneJobs.length ? doneJobs[doneJobs.length - 1].outputDir : null
       });
+      // 窗口不在前台时发系统通知
+      if (Notification.isSupported() && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
+        const failed = queue.length - doneJobs.length;
+        new Notification({
+          title: 'Stem Studio',
+          body: failed === 0 ? `分离完成：${doneJobs.length} 个文件已导出。` : `完成 ${doneJobs.length}/${queue.length} 个文件，${failed} 个未完成。`
+        }).show();
+      }
     }
     return;
   }
@@ -404,6 +412,8 @@ ipcMain.handle('cancel-separation', () => {
 });
 
 ipcMain.handle('open-path', (_event, target) => shell.openPath(target));
+
+ipcMain.handle('app-version', () => app.getVersion());
 
 // ---------- 生命周期 ----------
 function createWindow() {

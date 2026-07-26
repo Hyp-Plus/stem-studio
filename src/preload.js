@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('stemStudio', {
   start: (options) => ipcRenderer.invoke('start-separation', options),
   cancel: () => ipcRenderer.invoke('cancel-separation'),
   openPath: (target) => ipcRenderer.invoke('open-path', target),
+  appVersion: () => ipcRenderer.invoke('app-version'),
   pathForFile: (file) => webUtils.getPathForFile(file),
   onUpdate: (listener) => ipcRenderer.on('separation-update', (_event, data) => listener(data)),
   onQueueUpdate: (listener) => ipcRenderer.on('queue-update', (_event, data) => listener(data)),

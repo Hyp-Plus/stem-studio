@@ -1,6 +1,6 @@
 {
   "name": "stem-studio",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Offline music and voice stem separation for macOS and Windows",
   "main": "src/main.js",
   "scripts": {

@@ -43,7 +43,7 @@
         </div>
         <label class="label">导出位置</label>
         <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
-        <div id="progress-area" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
+        <div id="progress-area" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
         <div class="actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消全部</button><button id="open-button" hidden>打开导出文件夹</button></div>
       </section>
       <details class="settings">
@@ -67,7 +67,7 @@
         </div>
       </details>
       <p id="notice" class="notice">提示：高质量六轨会使用更多时间和内存。</p>
-      <footer>铃铛出品 · Stem Studio</footer>
+      <footer>铃铛出品 · Stem Studio <span id="app-version"></span></footer>
     </main>
     <script src="renderer.js"></script>
   </body>

@@ -141,6 +141,32 @@ $('start-button').addEventListener('click', async () => {
 $('cancel-button').addEventListener('click', () => window.stemStudio.cancel());
 $('open-button').addEventListener('click', () => window.stemStudio.openPath(state.lastOutput));
 
+// ---------- 进度、用时与预计剩余 ----------
+const progress = { jobId: null, startedAt: 0 };
+
+function formatClock(ms) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  return seconds >= 60 ? `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒` : `${seconds} 秒`;
+}
+
+function updateEta(percent) {
+  if (!progress.startedAt) return;
+  const elapsed = Date.now() - progress.startedAt;
+  let text = `已用 ${formatClock(elapsed)}`;
+  if (percent > 5 && percent < 98) {
+    text += ` · 预计剩余 ${formatClock(elapsed * (100 - percent) / percent)}`;
+  }
+  $('progress-eta').textContent = text;
+}
+
+function overallPercent() {
+  if (!state.jobs.length) return 0;
+  const finished = state.jobs.filter((job) => ['done', 'error', 'cancelled'].includes(job.status)).length;
+  const runningJob = state.jobs.find((job) => job.status === 'running');
+  const currentPart = runningJob ? (runningJob.percent || 0) / 100 : 0;
+  return Math.min(100, Math.round(((finished + currentPart) / state.jobs.length) * 100));
+}
+
 // ---------- 主进程事件 ----------
 window.stemStudio.onQueueUpdate((snapshot) => {
   state.jobs = snapshot.jobs;
@@ -148,21 +174,30 @@ window.stemStudio.onQueueUpdate((snapshot) => {
   renderQueue();
   const runningJob = snapshot.jobs.find((job) => job.status === 'running');
   if (runningJob) {
+    if (progress.jobId !== runningJob.id) { progress.jobId = runningJob.id; progress.startedAt = Date.now(); $('progress-eta').textContent = ''; }
     const position = snapshot.jobs.filter((job) => ['done', 'error', 'cancelled'].includes(job.status)).length + 1;
     $('progress-message').textContent = `（${position}/${snapshot.jobs.length}）${runningJob.name}`;
   }
+  $('progress-bar').style.width = `${overallPercent()}%`;
 });
 
 window.stemStudio.onUpdate((update) => {
   const job = state.jobs.find((item) => item.id === update.id);
   if (job) { job.percent = update.percent; job.message = update.message; }
-  $('progress-value').textContent = `${update.percent || 0}%`;
-  $('progress-bar').style.width = `${update.percent || 0}%`;
+  const overall = overallPercent();
+  $('progress-value').textContent = state.jobs.length > 1
+    ? `当前 ${update.percent || 0}% · 总 ${overall}%`
+    : `${update.percent || 0}%`;
+  $('progress-bar').style.width = `${overall}%`;
+  updateEta(update.percent || 0);
   renderQueue();
 });
 
 window.stemStudio.onQueueFinished((summary) => {
   setRunning(false);
+  progress.jobId = null;
+  progress.startedAt = 0;
+  $('progress-eta').textContent = '';
   state.lastOutput = summary.lastOutput;
   $('open-button').hidden = !summary.lastOutput;
   $('progress-area').hidden = true;
@@ -230,6 +265,14 @@ $('default-output-clear-button').addEventListener('click', async () => {
 $('format-select').addEventListener('change', () => window.stemStudio.setSettings({ format: $('format-select').value }));
 $('performance-select').addEventListener('change', () => window.stemStudio.setSettings({ performance: $('performance-select').value }));
 
+// ---------- 快捷键 ----------
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || state.running) return;
+  const tag = (event.target && event.target.tagName) || '';
+  if (['BUTTON', 'SELECT', 'INPUT', 'TEXTAREA'].includes(tag)) return;
+  $('start-button').click();
+});
+
 // ---------- 引擎检测 ----------
 async function checkEngine() {
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('检测超时')), 4000));
@@ -256,6 +299,7 @@ async function checkEngine() {
     state.stemOptions = stemOptions;
     renderStems();
     refreshHistory();
+    window.stemStudio.appVersion().then((version) => { $('app-version').textContent = `v${version}`; }).catch(() => {});
   } catch { /* 初始化失败不阻塞界面 */ }
   checkEngine();
 })();
