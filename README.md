@@ -10,6 +10,19 @@
   <img src="assets/screenshot.png" width="720" alt="应用界面" />
 </p>
 
+## 下载
+
+前往 **[Releases](https://github.com/Hyp-Plus/stem-studio/releases)** 下载最新版：
+
+- **macOS**（Apple Silicon，macOS 12+）：`Stem Studio-<版本>-mac-arm64.dmg`
+- **Windows**（x64）：`Stem Studio-<版本>-win-x64.exe` — ⚠️ 构建已通过 CI，但尚未在实机验证，遇到问题欢迎提 issue
+
+应用未签名（个人开发者，无 Apple Developer 证书），macOS 首次打开：
+
+1. 打开 dmg，把 Stem Studio 拖入「应用程序」
+2. 在「应用程序」里**右键 → 打开**（只需一次；直接双击会被 Gatekeeper 拦下）
+3. 如仍提示已损坏，在终端执行：`xattr -dr com.apple.quarantine "/Applications/Stem Studio.app"`
+
 ## 功能
 
 - 标准四轨（`htdemucs`）与高质量六轨（`htdemucs_6s`）两种分离模式，可勾选只导出需要的音轨（人声、鼓、贝斯、钢琴、吉他、其他）

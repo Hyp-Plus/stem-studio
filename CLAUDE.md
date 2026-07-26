@@ -1,6 +1,6 @@
 # Stem Studio — Claude Code 项目说明
 
-本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.10.0。
+本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.11.0，公开仓库 github.com/Hyp-Plus/stem-studio。
 
 ## 常用命令
 
@@ -37,16 +37,15 @@ npm run prepare:ffmpeg              # 整理静态 ffmpeg/ffprobe 到 ffmpeg-dis
 
 ## 当前重要待办（按优先级）
 
-1. Windows 收尾：CI 构建与 NSIS 安装包均已通过（`release.yml` 产出 win-x64.exe 172M artifact），剩 GPU 实机冒烟（CI 无独显，DML 走 WARP）、P3 模型注册表扩展 .onnx 格式（Windows 引擎走 demucs_onnx，模型是 .onnx 而非 .th）。仓库远程：github.com/Hyp-Plus/stem-studio（私有）
-2. P5 收尾：脚手架与发布流水线已就绪并 CI 实测（双平台安装包 artifact），只差证书——申请 Apple Developer Program 后按 `docs/发布-P5-签名与公证.md` 配 secrets 即可，代码零改动
-2. P5 签名/notarization + CI 出正式安装包（本机无 Developer ID 证书）
+1. Windows 收尾：CI 构建与 NSIS 安装包均已通过（`release.yml` 产出 win-x64.exe artifact），Release 里标注「未实机验证」；剩 GPU 实机冒烟（CI 无独显，DML 走 WARP）、P3 模型注册表扩展 .onnx 格式（Windows 引擎走 demucs_onnx，模型是 .onnx 而非 .th）
+2. 签名（暂缓）：个人开发者不购买 Apple Developer Program，以未签名 dmg + 右键打开的方式发布；将来如需签名，按 `docs/发布-P5-签名与公证.md` 配 secrets 即可，代码零改动
 3. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板
 
 已完成（2026-07-26/27 第二轮会话）：端到端实测全通过并修复失败原因不展示缺陷（v0.7.0）；UI 微调；引擎分发 P1 质量对比（v0.8.0 前，`docs/引擎分发-P1-质量对比.md`）；P2 冻结引擎接入打包（v0.8.0，`docs/引擎分发-P2-打包接入.md`，macOS 选定冻结原版 demucs 保 MPS，Windows 构建链就绪待实机）；P3 应用内模型下载管理（v0.9.0，SHA256+断点续传+离线导入，全路径实测）；P4 内置静态 FFmpeg（v0.10.0，发布形态 942M 打包版在零环境变量下完成视频分离）。
 
 ## 已知环境事实
 
-- 用户开发机 demucs 位置：`/Users/haruki/Documents/Codex/2026-07-04/gi/.venv-demucs/bin/demucs`（勿再硬编码进代码，仅供测试时在设置页选择）
+- 用户开发机 demucs 位置：`<你本机的 demucs 路径>`（勿再硬编码进代码，仅供测试时在设置页选择）
 - `安装到应用程序.command`：一键 npm install → package:mac → 复制到 /Applications（已 chmod +x）
 - 打包后的 app 读不到 shell 环境变量；引擎/ffmpeg 均已内置，无需用户配置
 - 本机网络对 GitHub/PyPI 直连易断；Electron 下载可用 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
