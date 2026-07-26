@@ -10,6 +10,10 @@ on:
   push:
     tags: ["v*"]
 
+# 默认 GITHUB_TOKEN 只读；创建 Release 与上传附件需要 contents 写权限
+permissions:
+  contents: write
+
 jobs:
   macos:
     name: macOS 安装包（dmg）
