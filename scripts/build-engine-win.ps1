@@ -9,6 +9,9 @@ $root = Split-Path -Parent $PSScriptRoot
 $venv = Join-Path $root ".venv-engine"
 $dist = Join-Path $root "engine-dist"
 
+# 让所有 Python 子进程用 UTF-8 输出（CI 与本地控制台代码页不定）
+$env:PYTHONIOENCODING = "utf-8"
+
 # 1. 独立虚拟环境
 if (-not (Test-Path $venv)) {
     py -3.12 -m venv $venv

@@ -20,6 +20,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Windows 控制台默认代码页（如 cp1252/cp936）编不出全部中文时会直接
+# UnicodeEncodeError 崩溃；引擎输出契约是 UTF-8（主进程按 UTF-8 解析
+# 进度与错误行），这里统一强制并以 replace 兜底。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".m4v"}
 CHUNK_LINE = re.compile(r"chunk\s+(\d+)\s*/\s*(\d+)")
 
