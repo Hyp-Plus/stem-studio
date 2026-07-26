@@ -8,32 +8,33 @@
   </head>
   <body>
     <div id="drop-overlay" hidden><p>松开以添加文件</p></div>
-    <div id="workbench" class="workbench" hidden>
-      <div class="workbench-panel">
-        <header class="workbench-head">
-          <div><h3 id="wb-title">分离工作台</h3><p id="wb-subtitle" class="wb-subtitle"></p></div>
-          <button id="wb-close">关闭</button>
-        </header>
-        <div id="wb-loading" class="wb-loading">正在加载音轨…</div>
-        <div id="wb-tracks" class="wb-tracks"></div>
-        <div class="wb-transport">
-          <button id="wb-play" class="primary wb-play" disabled>播放</button>
-          <span id="wb-time" class="wb-time">0:00 / 0:00</span>
-          <div id="wb-seek" class="wb-seek"><div class="track"><i id="wb-seek-bar"></i></div></div>
-        </div>
-        <div class="wb-actions">
-          <span class="wb-presets">
-            <button id="wb-preset-all" class="wb-preset">原始比例</button>
-            <button id="wb-preset-karaoke" class="wb-preset">伴奏（去人声）</button>
-            <button id="wb-preset-vocals" class="wb-preset">纯人声</button>
-          </span>
-          <button id="wb-export" class="primary">导出混音</button>
-        </div>
-        <p id="wb-notice" class="notice"></p>
-      </div>
-    </div>
     <main>
       <header><span class="mark">S</span><div><h1>Stem Studio</h1><p>离线音频分离</p></div><span id="engine" class="engine">正在检测引擎…</span></header>
+      <div id="page-workbench" class="page" hidden>
+        <section class="workbench-panel">
+          <header class="workbench-head">
+            <div><h3 id="wb-title">分离工作台</h3><p id="wb-subtitle" class="wb-subtitle"></p></div>
+            <button id="wb-close">← 返回主页</button>
+          </header>
+          <div id="wb-loading" class="wb-loading">正在加载音轨…</div>
+          <div id="wb-tracks" class="wb-tracks"></div>
+          <div class="wb-transport">
+            <button id="wb-play" class="primary wb-play" disabled>播放</button>
+            <span id="wb-time" class="wb-time">0:00 / 0:00</span>
+            <div id="wb-seek" class="wb-seek"><div class="track"><i id="wb-seek-bar"></i></div></div>
+          </div>
+          <div class="wb-actions">
+            <span class="wb-presets">
+              <button id="wb-preset-all" class="wb-preset">原始比例</button>
+              <button id="wb-preset-karaoke" class="wb-preset">伴奏（去人声）</button>
+              <button id="wb-preset-vocals" class="wb-preset">纯人声</button>
+            </span>
+            <button id="wb-export" class="primary">导出混音</button>
+          </div>
+          <p id="wb-notice" class="notice"></p>
+        </section>
+      </div>
+      <div id="page-main" class="page">
       <section class="hero"><p class="eyebrow">DEM U C S · 本地处理</p><h2>把声音拆开，听见每一层。</h2><p>所有文件都在你的电脑上处理，不会上传到网络。</p></section>
       <section class="panel">
         <label class="label">源文件（可多选，或直接拖入窗口；任务进行中拖入会加入队列）</label>
@@ -93,6 +94,7 @@
         <div id="model-list" class="model-list"></div>
       </details>
       <p id="notice" class="notice">提示：高质量六轨会使用更多时间和内存。</p>
+      </div>
       <footer>铃铛出品 · Stem Studio <span id="app-version"></span></footer>
     </main>
     <script src="renderer.js"></script>
