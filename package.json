@@ -1,6 +1,6 @@
 {
   "name": "stem-studio",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Offline music and voice stem separation for macOS and Windows",
   "main": "src/main.js",
   "scripts": {
@@ -18,6 +18,9 @@
       "src/**/*",
       "package.json",
       "README.md"
+    ],
+    "extraResources": [
+      { "from": "engine-dist", "to": "engine", "filter": ["**/*"] }
     ],
     "mac": {
       "target": ["dmg"],

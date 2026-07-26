@@ -4,3 +4,5 @@ out/
 .DS_Store
 *.log
 .omx/
+engine-dist/
+.venv-engine/

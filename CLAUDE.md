@@ -1,6 +1,6 @@
 # Stem Studio — Claude Code 项目说明
 
-本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.7.0。
+本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.8.0。
 
 ## 常用命令
 
@@ -10,6 +10,8 @@ npm start          # 开发运行
 npm run lint       # node --check 四个 JS 文件
 npm test           # node:test 单元测试（test/lib.test.js，9 用例）
 npm run package:mac / package:win   # electron-builder 打包
+bash scripts/build-engine-mac.sh    # 打包前先构建引擎（产物 engine-dist/，已 gitignore）
+powershell -File scripts/build-engine-win.ps1   # Windows 引擎（demucs-onnx+DML）
 ```
 
 系统没装 Demucs 时开发运行：`STEM_STUDIO_DEMUCS=/path/to/demucs npm start`
@@ -21,6 +23,7 @@ npm run package:mac / package:win   # electron-builder 打包
 - `src/preload.js` — contextBridge 暴露 `window.stemStudio`（含 webUtils.getPathForFile 供拖拽取路径）
 - `src/renderer.js` — UI 状态、拖拽、队列/历史渲染、ETA 估算、设置面板
 - `test/lib.test.js` — lib 的 9 个用例
+- `engine/demucs_shim.py` — ONNX 引擎适配层：以原版 demucs CLI 契约驱动 demucs_onnx（Windows 路线用；应用零改动）
 
 引擎发现顺序：设置里的路径 → 环境变量 `STEM_STUDIO_DEMUCS` → 打包资源（mac `resources/engine/bin/demucs`、win `resources/engine/Scripts/demucs.exe`）→ PATH。
 输出结构：`<导出位置>/<模型名>/<源文件名>/<stem>.<ext>`。
@@ -33,11 +36,12 @@ npm run package:mac / package:win   # electron-builder 打包
 
 ## 当前重要待办（按优先级）
 
-1. 引擎分发 P2：按平台拆分路线并打包验证——Windows 用 ONNX+DML（需实机验证 DML），macOS 在「冻结原版 demucs（保 MPS，~510M）」与「ONNX+CPU（~320M 但慢 2–3 倍）」间决断。P1 质量对比已完成：质量达标，macOS CoreML 编译失败，详见 `docs/引擎分发-P1-质量对比.md`
-2. P2 后续：P3 应用内模型下载（SHA256+断点续传）→ P4 附带静态 ffmpeg → P5 签名/notarization
-3. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板、代码签名/notarization、内置 ffmpeg
+1. Windows 实机验证：跑 `scripts/build-engine-win.ps1`（或 CI 的 build-engine 工作流），验证 DML 执行器在 htdemucs 上可用（mac 的 CoreML 就编译失败，不能想当然）、NSIS 打包接入 `engine-dist/Scripts`
+2. 引擎分发 P3：应用内模型下载管理（SHA256 校验、断点续传、离线导入；现状是原版引擎首次分离自动下载到 ~/.cache/torch）
+3. P4 附带静态 ffmpeg → P5 签名/notarization + CI 出正式安装包
+4. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板
 
-已完成（2026-07-26 第二轮会话）：ci.yml 已移入 `.github/workflows/`；真实媒体端到端实测通过（批量队列、运行中追加、取消与进程树终止、六轨勾选过滤、视频输入、损坏文件错误归类；MPS 回退因无法构造 MPS 故障未覆盖）；实测发现失败原因不展示的缺陷已修（v0.7.0）；UI 间距与行内顺序微调已做；package-lock.json 已入库。
+已完成（2026-07-26 第二轮会话）：端到端实测全通过并修复失败原因不展示缺陷（v0.7.0）；UI 微调；引擎分发 P1 质量对比（`docs/引擎分发-P1-质量对比.md`）与 P2 打包接入（`docs/引擎分发-P2-打包接入.md`）——macOS 选定冻结原版 demucs 保 MPS（打包版已实测：自动发现内置引擎、45s 音频 17s、总体积 818M），Windows 构建链就绪（shim+脚本+CI）待实机。
 
 ## 已知环境事实
 

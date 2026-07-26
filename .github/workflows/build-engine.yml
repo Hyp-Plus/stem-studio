@@ -1,0 +1,44 @@
+# 手动触发的引擎构建：冻结分离引擎并上传为构建产物
+# Windows 用 demucs-onnx + DirectML；macOS 路线见 docs/引擎分发-P1-质量对比.md
+name: 构建分离引擎
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-engine:
+    name: Windows 引擎（demucs-onnx + DML）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 构建引擎
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-engine-win.ps1
+      - name: 报告体积
+        run: Get-ChildItem engine-dist/Scripts | Measure-Object -Property Length -Sum | ForEach-Object { "总计 {0:N0} MB" -f ($_.Sum / 1MB) }
+        shell: powershell
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-windows-dml
+          path: engine-dist/Scripts
+          retention-days: 14
+
+  macos-engine:
+    name: macOS 引擎（原版 demucs + MPS）
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 构建引擎
+        run: bash scripts/build-engine-mac.sh
+      - name: 报告体积
+        run: du -sh engine-dist/bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-macos-mps
+          path: engine-dist/bin
+          retention-days: 14
