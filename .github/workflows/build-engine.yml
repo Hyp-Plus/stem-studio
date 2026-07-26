@@ -15,7 +15,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: 构建引擎
-        run: powershell -ExecutionPolicy Bypass -File scripts/build-engine-win.ps1
+        shell: pwsh
+        run: ./scripts/build-engine-win.ps1
       - name: 报告体积
         run: Get-ChildItem engine-dist/Scripts | Measure-Object -Property Length -Sum | ForEach-Object { "总计 {0:N0} MB" -f ($_.Sum / 1MB) }
         shell: powershell

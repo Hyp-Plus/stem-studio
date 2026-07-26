@@ -1,4 +1,4 @@
-# Stem Studio Windows 引擎构建脚本（demucs-onnx + DirectML 路线）
+﻿# Stem Studio Windows 引擎构建脚本（demucs-onnx + DirectML 路线）
 # 产物：engine-dist/Scripts/demucs.exe（+ _internal/），符合主进程引擎发现
 # 布局 resources/engine/Scripts/demucs.exe。在 Windows 上运行：
 #   powershell -ExecutionPolicy Bypass -File scripts/build-engine-win.ps1
