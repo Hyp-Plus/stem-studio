@@ -1,13 +1,14 @@
 {
   "name": "stem-studio",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Offline music and voice stem separation for macOS and Windows",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "package:mac": "electron-builder --mac dmg",
     "package:win": "electron-builder --win nsis",
-    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js"
+    "lint": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/lib.js",
+    "test": "node --test"
   },
   "build": {
     "appId": "com.stemstudio.app",

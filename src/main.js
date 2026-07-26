@@ -9,23 +9,11 @@ let current = null;    // 正在运行的队列项
 let currentProc = null;
 let jobCounter = 0;
 
-const MODEL_STEMS = {
-  htdemucs: ['vocals', 'drums', 'bass', 'other'],
-  htdemucs_6s: ['vocals', 'piano', 'guitar', 'bass', 'drums', 'other']
-};
-const STEM_LABELS = { vocals: '人声', drums: '鼓', bass: '贝斯', other: '其他', piano: '钢琴', guitar: '吉他' };
-const PERFORMANCE_PROFILES = {
-  fast: { shifts: 1, overlap: 0.25 },
-  balanced: { shifts: 2, overlap: 0.5 },
-  best: { shifts: 10, overlap: 0.75 }
-};
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.mkv', '.m4v']);
-const FORMAT_ARGS = { wav: [], mp3: ['--mp3', '--mp3-bitrate', '320'], flac: ['--flac'] };
-const FORMAT_EXT = { wav: '.wav', mp3: '.mp3', flac: '.flac' };
+const lib = require('./lib');
+const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS } = lib;
 const MIN_FREE_DISK_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
 // ---------- 设置持久化 ----------
-const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced' };
 
 function settingsFile() { return path.join(app.getPath('userData'), 'settings.json'); }
 
@@ -118,23 +106,6 @@ function killProcessTree(proc) {
   }
 }
 
-function friendlyFailure(log, input) {
-  const isVideo = VIDEO_EXTENSIONS.has(path.extname(input).toLowerCase());
-  if (/out of memory|MemoryError/i.test(log)) {
-    return '内存不足，分离中断。请关闭其他应用后重试，或在设置中改用“快速”性能档位。';
-  }
-  if (/(could not|failed to|error).{0,40}download|URLError|ConnectionError|Connection reset/i.test(log)) {
-    return '模型下载失败。首次使用需要联网下载模型文件，请检查网络后重试。';
-  }
-  if (isVideo && /ffmpeg|no backend|could not.{0,30}(decode|load|open)/i.test(log)) {
-    return '无法解码该视频文件。处理视频需要 FFmpeg，请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg）。';
-  }
-  if (/could not.{0,30}(decode|load|open)|no backend|invalid data/i.test(log)) {
-    return '无法读取该媒体文件，文件可能已损坏或格式不受支持。';
-  }
-  return null;
-}
-
 // ---------- 任务队列 ----------
 function queueSnapshot() {
   return {
@@ -153,16 +124,13 @@ function queueSnapshot() {
 function broadcastQueue() { send('queue-update', queueSnapshot()); }
 
 function buildArgs(job, device) {
-  const model = job.mode === 'six-stems' ? 'htdemucs_6s' : 'htdemucs';
-  const settings = loadSettings();
-  const profile = PERFORMANCE_PROFILES[settings.performance] || PERFORMANCE_PROFILES.balanced;
-  const format = FORMAT_ARGS[settings.format] ? settings.format : 'wav';
-
-  const args = ['-n', model, '--float32', '--clip-mode', 'rescale', ...FORMAT_ARGS[format]];
-  if (profile.shifts > 1) args.push('--shifts', String(profile.shifts), '--overlap', String(profile.overlap));
-  if (device) args.push('-d', device);
-  args.push('-o', outputRoot(job.input, job.output), job.input);
-  return { args, model, shifts: Math.max(1, profile.shifts), format };
+  return lib.buildDemucsArgs({
+    mode: job.mode,
+    settings: loadSettings(),
+    root: outputRoot(job.input, job.output),
+    input: job.input,
+    device
+  });
 }
 
 function finalOutputDir(job, model) {
@@ -243,8 +211,7 @@ function runJob(job, device, isRetry) {
   currentProc = proc;
 
   let log = '';
-  let passes = 0;
-  let lastPercent = 0;
+  let progressState = { passes: 0, lastPercent: 0 };
   let settled = false;
 
   const onData = (data) => {
@@ -252,18 +219,11 @@ function runJob(job, device, isRetry) {
     const text = data.toString();
     log = (log + text).slice(-20000);
 
-    const matches = text.match(/(\d{1,3}(?:\.\d+)?)%/g);
-    if (matches) {
-      const currentPercent = Math.min(100, Number(matches.at(-1).replace('%', '')));
-      // 进度大幅回落 → 进入下一个 pass（--shifts 会跑多轮）
-      if (currentPercent < lastPercent - 40) passes = Math.min(passes + 1, shifts - 1);
-      lastPercent = currentPercent;
-    }
-    const overall = Math.round(((passes + lastPercent / 100) / shifts) * 96) + 2;
-
-    let message = text.trim().slice(-160) || '正在分离音轨…';
-    if (/downloading/i.test(text)) message = '首次使用，正在下载模型文件…';
-    job.percent = Math.max(2, Math.min(98, overall));
+    progressState = lib.nextProgress(progressState, text, shifts);
+    const message = progressState.downloading
+      ? '首次使用，正在下载模型文件…'
+      : (text.trim().slice(-160) || '正在分离音轨…');
+    job.percent = progressState.overall;
     job.message = message;
     send('separation-update', { id: job.id, percent: job.percent, message });
   };
@@ -292,7 +252,7 @@ function runJob(job, device, isRetry) {
       send('separation-update', { id: job.id, percent: 2, message: job.message });
       return runJob(job, 'cpu', true);
     }
-    finishJob(job, 'error', friendlyFailure(log, job.input) || `Demucs 已退出（代码 ${code}）。\n${log.slice(-500)}`);
+    finishJob(job, 'error', lib.classifyFailure(log, lib.isVideoPath(job.input)) || `Demucs 已退出（代码 ${code}）。\n${log.slice(-500)}`);
   });
 }
 
@@ -331,13 +291,7 @@ ipcMain.handle('pick-default-output', async () => {
 
 ipcMain.handle('get-settings', () => loadSettings());
 
-ipcMain.handle('set-settings', (_event, patch) => {
-  const allowed = {};
-  for (const key of Object.keys(DEFAULT_SETTINGS)) {
-    if (patch && Object.prototype.hasOwnProperty.call(patch, key)) allowed[key] = patch[key];
-  }
-  return saveSettings(allowed);
-});
+ipcMain.handle('set-settings', (_event, patch) => saveSettings(lib.sanitizeSettings(patch)));
 
 ipcMain.handle('engine-status', () => {
   const executable = resolveDemucs();
@@ -364,7 +318,7 @@ ipcMain.handle('start-separation', async (_event, options) => {
   if (!resolveDemucs()) throw new Error('未找到 Demucs。请在“设置”中选择 Demucs 可执行文件，或在系统中安装 demucs。');
 
   // 前置检测：视频输入需要 FFmpeg
-  const hasVideo = inputs.some((file) => VIDEO_EXTENSIONS.has(path.extname(file).toLowerCase()));
+  const hasVideo = inputs.some((file) => lib.isVideoPath(file));
   if (hasVideo && !commandExists('ffmpeg')) {
     throw new Error('处理视频文件需要 FFmpeg。请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg），或先将视频转为音频文件。');
   }
