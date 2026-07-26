@@ -159,6 +159,8 @@ function finishJob(job, status, message, outputDir) {
     input: job.input,
     mode: job.mode,
     status,
+    // 保存失败原因，供历史列表展示
+    message: status === 'error' ? message : null,
     outputDir: job.outputDir || null,
     startedAt: job.startedAt || null,
     finishedAt: job.finishedAt,

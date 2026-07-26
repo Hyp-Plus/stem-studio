@@ -49,7 +49,10 @@ function renderQueue() {
     const percent = job.status === 'running' ? ` ${job.percent || 0}%` : '';
     const open = job.status === 'done' && job.outputDir
       ? `<button class="row-open" data-dir="${escapeHtml(job.outputDir)}">打开</button>` : '';
-    return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span>${open}<span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span></div>`;
+    // 失败时把中文错误原因展示在行内，否则用户只能看到"失败"二字
+    const detail = job.status === 'error' && job.message
+      ? `<span class="row-detail" title="${escapeHtml(job.message)}">${escapeHtml(job.message)}</span>` : '';
+    return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
 }
@@ -233,7 +236,9 @@ async function refreshHistory() {
     const duration = entry.durationMs ? ` · ${formatDuration(entry.durationMs)}` : '';
     const open = entry.status === 'done' && entry.outputDir
       ? `<button class="row-open" data-dir="${escapeHtml(entry.outputDir)}">打开</button>` : '';
-    return `<div class="row"><span class="row-name" title="${escapeHtml(entry.input || '')}">${escapeHtml(entry.name || '')}</span>${open}<span class="chip ${entry.status}">${status}${duration}</span></div>`;
+    const detail = entry.status === 'error' && entry.message
+      ? `<span class="row-detail" title="${escapeHtml(entry.message)}">${escapeHtml(entry.message)}</span>` : '';
+    return `<div class="row"><span class="row-name" title="${escapeHtml(entry.input || '')}">${escapeHtml(entry.name || '')}</span><span class="chip ${entry.status}">${status}${duration}</span>${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
 }
