@@ -145,3 +145,51 @@ test('classifyDownloadFailure：网络错误归类为中文提示', () => {
   assert.match(lib.classifyDownloadFailure(new Error('HTTP 503')), /503/);
   assert.match(lib.classifyDownloadFailure('奇怪的错误'), /下载失败/);
 });
+
+test('computeEffectiveGains：无 solo 时静音优先，音量截断到 0–1', () => {
+  const gains = lib.computeEffectiveGains([
+    { id: 'vocals', volume: 0.8, muted: false, solo: false },
+    { id: 'drums', volume: 0.5, muted: true, solo: false },
+    { id: 'bass', volume: 1.7, muted: false, solo: false },
+    { id: 'other', volume: -0.2, muted: false, solo: false }
+  ]);
+  assert.equal(gains.vocals, 0.8);
+  assert.equal(gains.drums, 0);
+  assert.equal(gains.bass, 1);
+  assert.equal(gains.other, 0);
+});
+
+test('computeEffectiveGains：solo 覆盖一切，未 solo 的轨全部为 0', () => {
+  const gains = lib.computeEffectiveGains([
+    { id: 'vocals', volume: 0.6, muted: true, solo: true },
+    { id: 'drums', volume: 1, muted: false, solo: false }
+  ]);
+  assert.equal(gains.vocals, 0.6, 'solo 轨即使被标记静音也应出声（solo 优先）');
+  assert.equal(gains.drums, 0);
+});
+
+test('buildMixArgs：只纳入增益>0 的轨，filter 与输出正确', () => {
+  const args = lib.buildMixArgs(
+    [{ id: 'vocals', path: '/s/vocals.wav' }, { id: 'drums', path: '/s/drums.wav' }, { id: 'bass', path: '/s/bass.wav' }],
+    { vocals: 0.5, drums: 0, bass: 1 },
+    '/out/伴奏.mp3'
+  );
+  assert.ok(args.includes('/s/vocals.wav') && args.includes('/s/bass.wav'));
+  assert.ok(!args.includes('/s/drums.wav'), '零增益轨不应进入输入');
+  const filter = args[args.indexOf('-filter_complex') + 1];
+  assert.ok(filter.includes('volume=0.500') && filter.includes('volume=1.000'));
+  assert.ok(filter.includes('amix=inputs=2:duration=longest:normalize=0'));
+  assert.ok(args.includes('-b:a') && args.includes('320k'), 'mp3 输出应带码率');
+  assert.equal(args[args.length - 1], '/out/伴奏.mp3');
+});
+
+test('buildMixArgs：全部增益为 0 返回 null；wav 输出不带 mp3 码率', () => {
+  assert.equal(lib.buildMixArgs([{ id: 'a', path: '/a.wav' }], { a: 0 }, '/o.wav'), null);
+  const wav = lib.buildMixArgs([{ id: 'a', path: '/a.wav' }], { a: 1 }, '/o.wav');
+  assert.ok(!wav.includes('-b:a'));
+});
+
+test('buildMixArgs：wav 输出使用 float32 编码保持无损', () => {
+  const args = lib.buildMixArgs([{ id: 'a', path: '/a.wav' }], { a: 1 }, '/o.wav');
+  assert.ok(args.includes('-c:a') && args.includes('pcm_f32le'));
+});

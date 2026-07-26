@@ -575,6 +575,64 @@ ipcMain.handle('model-import', (_event, name, filePath) => importModel(name, fil
 
 ipcMain.handle('app-version', () => app.getVersion());
 
+// ---------- 分离工作台 ----------
+const STEM_ORDER = ['vocals', 'piano', 'guitar', 'bass', 'drums', 'other'];
+const STEM_AUDIO_EXTS = ['.wav', '.flac', '.mp3'];
+
+// 列出输出目录里可加载进工作台的 stem 文件
+ipcMain.handle('list-stems', (_event, dir) => {
+  if (!dir || !fs.existsSync(dir)) return [];
+  const found = [];
+  for (const file of fs.readdirSync(dir)) {
+    const ext = path.extname(file).toLowerCase();
+    const stem = path.basename(file, ext);
+    if (STEM_AUDIO_EXTS.includes(ext) && STEM_ORDER.includes(stem)) {
+      found.push({ id: stem, label: STEM_LABELS[stem] || stem, path: path.join(dir, file) });
+    }
+  }
+  return found.sort((a, b) => STEM_ORDER.indexOf(a.id) - STEM_ORDER.indexOf(b.id));
+});
+
+// 读音频文件字节流给 decodeAudioData（限制在已知 stem 扩展名内）
+ipcMain.handle('read-audio-file', async (_event, filePath) => {
+  if (!STEM_AUDIO_EXTS.includes(path.extname(filePath || '').toLowerCase())) {
+    throw new Error('不支持的音频文件类型。');
+  }
+  return fs.promises.readFile(filePath);
+});
+
+// 按工作台当前增益混音导出（弹保存对话框；ffmpeg 已内置）
+ipcMain.handle('export-mix', async (_event, payload) => {
+  const { stems, gains, defaultName } = payload || {};
+  if (!Array.isArray(stems) || !stems.length) return { error: '没有可导出的音轨。' };
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: '导出混音',
+    defaultPath: path.join(path.dirname(stems[0].path), defaultName || '混音.wav'),
+    filters: [
+      { name: 'WAV 无损', extensions: ['wav'] },
+      { name: 'MP3 320kbps', extensions: ['mp3'] },
+      { name: 'FLAC 无损压缩', extensions: ['flac'] }
+    ]
+  });
+  if (canceled || !filePath) return { cancelled: true };
+  const args = lib.buildMixArgs(stems, gains || {}, filePath);
+  if (!args) return { error: '所有音轨都是静音，没有可导出的声音。' };
+
+  const dir = resolveFfmpegDir();
+  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const ffmpeg = dir ? path.join(dir, binary) : 'ffmpeg';
+  return new Promise((resolve) => {
+    let log = '';
+    const child = spawn(ffmpeg, args, { env: engineEnv() });
+    child.stderr.on('data', (chunk) => { log += chunk; });
+    child.on('error', (error) => resolve({ error: `无法启动 FFmpeg：${error.message}` }));
+    child.on('close', (code) => {
+      if (code === 0) resolve({ outPath: filePath });
+      else resolve({ error: `混音导出失败（FFmpeg 退出码 ${code}）：${log.slice(-200)}` });
+    });
+  });
+});
+
 // ---------- 生命周期 ----------
 function createWindow() {
   const saved = loadSettings().windowBounds;

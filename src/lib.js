@@ -117,6 +117,40 @@ function classifyDownloadFailure(reason) {
   return `下载失败：${text.slice(0, 120) || '未知错误'}`;
 }
 
+// 工作台：由各轨的 solo/静音/音量算出实际增益。
+// 规则：有任一轨 solo 时只出 solo 轨；静音优先于音量；音量范围 0–1。
+function computeEffectiveGains(tracks) {
+  const anySolo = tracks.some((track) => track.solo);
+  const gains = {};
+  for (const track of tracks) {
+    const audible = anySolo ? track.solo : !track.muted;
+    const volume = Math.min(1, Math.max(0, Number(track.volume ?? 1)));
+    gains[track.id] = audible ? volume : 0;
+  }
+  return gains;
+}
+
+// 工作台：按增益混合各 stem 的 ffmpeg 参数。
+// 增益为 0 的轨直接不进输入，全 0 时返回 null（没有可导出的声音）。
+function buildMixArgs(stems, gains, outPath) {
+  const active = stems.filter((stem) => (gains[stem.id] || 0) > 0);
+  if (!active.length) return null;
+  const args = ['-y'];
+  for (const stem of active) args.push('-i', stem.path);
+  const chains = active.map((stem, index) => `[${index}]volume=${(gains[stem.id]).toFixed(3)}[a${index}]`);
+  const joined = active.map((_, index) => `[a${index}]`).join('');
+  args.push(
+    '-filter_complex',
+    `${chains.join(';')};${joined}amix=inputs=${active.length}:duration=longest:normalize=0[out]`,
+    '-map', '[out]'
+  );
+  const lower = outPath.toLowerCase();
+  if (lower.endsWith('.mp3')) args.push('-b:a', '320k');
+  if (lower.endsWith('.wav')) args.push('-c:a', 'pcm_f32le'); // stem 本身是 float32，导出保持无损
+  args.push(outPath);
+  return args;
+}
+
 // 只保留白名单内的设置键
 function sanitizeSettings(patch) {
   const allowed = {};
@@ -144,5 +178,7 @@ module.exports = {
   resumeRange,
   downloadPercent,
   verifyModelDigest,
-  classifyDownloadFailure
+  classifyDownloadFailure,
+  computeEffectiveGains,
+  buildMixArgs
 };

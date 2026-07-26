@@ -48,13 +48,14 @@ function renderQueue() {
   list.innerHTML = state.jobs.map((job) => {
     const percent = job.status === 'running' ? ` ${job.percent || 0}%` : '';
     const open = job.status === 'done' && job.outputDir
-      ? `<button class="row-open" data-dir="${escapeHtml(job.outputDir)}">打开</button>` : '';
+      ? `<button class="row-bench" data-dir="${escapeHtml(job.outputDir)}" data-name="${escapeHtml(job.name)}">工作台</button><button class="row-open" data-dir="${escapeHtml(job.outputDir)}">打开</button>` : '';
     // 失败时把中文错误原因展示在行内，否则用户只能看到"失败"二字
     const detail = job.status === 'error' && job.message
       ? `<span class="row-detail" title="${escapeHtml(job.message)}">${escapeHtml(job.message)}</span>` : '';
     return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
+  list.querySelectorAll('.row-bench').forEach((button) => button.addEventListener('click', () => openWorkbench(button.dataset.dir, button.dataset.name)));
 }
 
 async function addFiles(paths) {
@@ -235,12 +236,13 @@ async function refreshHistory() {
     const status = STATUS_LABELS[entry.status] || entry.status;
     const duration = entry.durationMs ? ` · ${formatDuration(entry.durationMs)}` : '';
     const open = entry.status === 'done' && entry.outputDir
-      ? `<button class="row-open" data-dir="${escapeHtml(entry.outputDir)}">打开</button>` : '';
+      ? `<button class="row-bench" data-dir="${escapeHtml(entry.outputDir)}" data-name="${escapeHtml(entry.name || '')}">工作台</button><button class="row-open" data-dir="${escapeHtml(entry.outputDir)}">打开</button>` : '';
     const detail = entry.status === 'error' && entry.message
       ? `<span class="row-detail" title="${escapeHtml(entry.message)}">${escapeHtml(entry.message)}</span>` : '';
     return `<div class="row"><span class="row-name" title="${escapeHtml(entry.input || '')}">${escapeHtml(entry.name || '')}</span><span class="chip ${entry.status}">${status}${duration}</span>${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
+  list.querySelectorAll('.row-bench').forEach((button) => button.addEventListener('click', () => openWorkbench(button.dataset.dir, button.dataset.name)));
 }
 
 $('clear-history-button').addEventListener('click', async () => {
@@ -327,6 +329,239 @@ window.stemStudio.onModelProgress((status) => {
   renderModels();
   if (status.error) setNotice(`模型下载：${status.error}`, true);
   else if (status.info) setNotice(`${status.label}：${status.info}`);
+});
+
+// ---------- 分离工作台 ----------
+// Web Audio 多轨同步播放：每轨一个 AudioBuffer + GainNode，同一时钟起播保证相位对齐；
+// solo/静音/音量的实际增益由 lib.computeEffectiveGains 同款规则计算（此处内联同步实现）。
+const wb = {
+  ctx: null, tracks: [], sources: [], duration: 0,
+  playing: false, startedAt: 0, offset: 0, raf: 0, dir: null, title: ''
+};
+
+function wbEffectiveGains() {
+  const anySolo = wb.tracks.some((track) => track.solo);
+  const gains = {};
+  for (const track of wb.tracks) {
+    const audible = anySolo ? track.solo : !track.muted;
+    gains[track.id] = audible ? Math.min(1, Math.max(0, track.volume)) : 0;
+  }
+  return gains;
+}
+
+function wbApplyGains() {
+  const gains = wbEffectiveGains();
+  for (const track of wb.tracks) {
+    if (track.gainNode) track.gainNode.gain.value = gains[track.id];
+    track.element.classList.toggle('inaudible', gains[track.id] === 0);
+  }
+}
+
+function wbFormatTime(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function wbPosition() {
+  if (!wb.playing) return wb.offset;
+  return Math.min(wb.duration, wb.offset + wb.ctx.currentTime - wb.startedAt);
+}
+
+function wbDrawWave(track) {
+  const canvas = track.canvas;
+  const width = canvas.clientWidth || 600;
+  const height = canvas.clientHeight || 44;
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  const g = canvas.getContext('2d');
+  g.scale(devicePixelRatio, devicePixelRatio);
+  const data = track.buffer.getChannelData(0);
+  const step = Math.max(1, Math.floor(data.length / width));
+  g.fillStyle = '#3d3f4b';
+  for (let x = 0; x < width; x++) {
+    let peak = 0;
+    const start = x * step;
+    for (let i = start; i < Math.min(start + step, data.length); i += 16) {
+      const value = Math.abs(data[i]);
+      if (value > peak) peak = value;
+    }
+    const bar = Math.max(1, peak * height);
+    g.fillRect(x, (height - bar) / 2, 1, bar);
+  }
+}
+
+function wbTick() {
+  const position = wbPosition();
+  $('wb-time').textContent = `${wbFormatTime(position)} / ${wbFormatTime(wb.duration)}`;
+  const ratio = wb.duration ? position / wb.duration : 0;
+  $('wb-seek-bar').style.width = `${ratio * 100}%`;
+  for (const track of wb.tracks) track.playhead.style.left = `${ratio * 100}%`;
+  if (wb.playing && position >= wb.duration) { wbPause(); wb.offset = 0; wbTick(); return; }
+  if (wb.playing) wb.raf = requestAnimationFrame(wbTick);
+}
+
+function wbPlay() {
+  if (!wb.tracks.length || wb.playing) return;
+  if (wb.offset >= wb.duration) wb.offset = 0;
+  wb.ctx.resume();
+  wb.startedAt = wb.ctx.currentTime + 0.05; // 统一起播时刻，保证多轨相位一致
+  wb.sources = wb.tracks.map((track) => {
+    const source = wb.ctx.createBufferSource();
+    source.buffer = track.buffer;
+    source.connect(track.gainNode);
+    source.start(wb.startedAt, wb.offset);
+    return source;
+  });
+  wb.playing = true;
+  $('wb-play').textContent = '暂停';
+  wb.raf = requestAnimationFrame(wbTick);
+}
+
+function wbPause() {
+  if (!wb.playing) return;
+  wb.offset = wbPosition();
+  wb.sources.forEach((source) => { try { source.stop(); } catch { /* 已停 */ } });
+  wb.sources = [];
+  wb.playing = false;
+  $('wb-play').textContent = '播放';
+  cancelAnimationFrame(wb.raf);
+}
+
+function wbSeek(ratio) {
+  const wasPlaying = wb.playing;
+  wbPause();
+  wb.offset = Math.min(wb.duration, Math.max(0, ratio * wb.duration));
+  wbTick();
+  if (wasPlaying) wbPlay();
+}
+
+function wbSetNotice(message, isError = false) {
+  $('wb-notice').textContent = message;
+  $('wb-notice').classList.toggle('error', isError);
+}
+
+function wbRenderTracks() {
+  const list = $('wb-tracks');
+  list.innerHTML = wb.tracks.map((track, index) => `
+    <div class="wb-track" data-index="${index}">
+      <span class="wb-track-name">${escapeHtml(track.label)}</span>
+      <div class="wb-wave-wrap"><canvas class="wb-wave"></canvas><div class="wb-playhead"></div></div>
+      <div class="wb-track-controls">
+        <button class="wb-toggle wb-solo" title="独奏">S</button>
+        <button class="wb-toggle wb-mute" title="静音">M</button>
+        <input class="wb-volume" type="range" min="0" max="100" value="${Math.round(track.volume * 100)}" />
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.wb-track').forEach((element, index) => {
+    const track = wb.tracks[index];
+    track.element = element;
+    track.canvas = element.querySelector('.wb-wave');
+    track.playhead = element.querySelector('.wb-playhead');
+    element.querySelector('.wb-solo').addEventListener('click', (event) => {
+      track.solo = !track.solo;
+      event.target.classList.toggle('on-solo', track.solo);
+      wbApplyGains();
+    });
+    element.querySelector('.wb-mute').addEventListener('click', (event) => {
+      track.muted = !track.muted;
+      event.target.classList.toggle('on-mute', track.muted);
+      wbApplyGains();
+    });
+    element.querySelector('.wb-volume').addEventListener('input', (event) => {
+      track.volume = Number(event.target.value) / 100;
+      wbApplyGains();
+    });
+    element.querySelector('.wb-wave-wrap').addEventListener('click', (event) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      wbSeek((event.clientX - rect.left) / rect.width);
+    });
+    wbDrawWave(track);
+  });
+  wbApplyGains();
+}
+
+function wbPreset(kind) {
+  for (const track of wb.tracks) {
+    track.solo = false;
+    track.muted = kind === 'karaoke' ? track.id === 'vocals'
+      : kind === 'vocals' ? track.id !== 'vocals' : false;
+    track.volume = 1;
+    track.element.querySelector('.wb-solo').classList.remove('on-solo');
+    track.element.querySelector('.wb-mute').classList.toggle('on-mute', track.muted);
+    track.element.querySelector('.wb-volume').value = 100;
+  }
+  wbApplyGains();
+}
+
+async function openWorkbench(dir, title) {
+  const stems = await window.stemStudio.listStems(dir);
+  if (!stems.length) return setNotice('该目录里没有找到可加载的音轨文件。', true);
+  wb.dir = dir; wb.title = title || dir.split(/[\\/]/).at(-1);
+  $('workbench').hidden = false;
+  $('wb-title').textContent = `分离工作台 · ${wb.title}`;
+  $('wb-subtitle').textContent = dir;
+  $('wb-loading').hidden = false;
+  $('wb-tracks').innerHTML = '';
+  $('wb-play').disabled = true;
+  wbSetNotice('');
+  try {
+    wb.ctx = wb.ctx || new AudioContext();
+    const loaded = [];
+    for (const stem of stems) {
+      $('wb-loading').textContent = `正在加载音轨：${stem.label}…`;
+      const bytes = await window.stemStudio.readAudioFile(stem.path);
+      const buffer = await wb.ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      const gainNode = wb.ctx.createGain();
+      gainNode.connect(wb.ctx.destination);
+      loaded.push({ ...stem, buffer, gainNode, volume: 1, muted: false, solo: false });
+    }
+    wb.tracks = loaded;
+    wb.duration = Math.max(...loaded.map((track) => track.buffer.duration));
+    wb.offset = 0;
+    $('wb-loading').hidden = true;
+    $('wb-play').disabled = false;
+    wbRenderTracks();
+    wbTick();
+  } catch (error) {
+    $('wb-loading').textContent = `音轨加载失败：${error.message}`;
+  }
+}
+
+function closeWorkbench() {
+  wbPause();
+  wb.tracks.forEach((track) => track.gainNode && track.gainNode.disconnect());
+  wb.tracks = [];
+  $('workbench').hidden = true;
+}
+
+$('wb-close').addEventListener('click', closeWorkbench);
+$('wb-play').addEventListener('click', () => (wb.playing ? wbPause() : wbPlay()));
+$('wb-seek').addEventListener('click', (event) => {
+  const rect = $('wb-seek').getBoundingClientRect();
+  wbSeek((event.clientX - rect.left) / rect.width);
+});
+$('wb-preset-all').addEventListener('click', () => wbPreset('all'));
+$('wb-preset-karaoke').addEventListener('click', () => wbPreset('karaoke'));
+$('wb-preset-vocals').addEventListener('click', () => wbPreset('vocals'));
+$('wb-export').addEventListener('click', async () => {
+  const gains = wbEffectiveGains();
+  const anyVocal = (gains.vocals || 0) > 0;
+  const suffix = !anyVocal ? '伴奏' : Object.values(gains).filter((gain) => gain > 0).length === 1 ? '独奏' : '混音';
+  const format = $('format-select').value === 'flac' ? 'flac' : $('format-select').value === 'mp3' ? 'mp3' : 'wav';
+  wbSetNotice('正在导出混音…');
+  const result = await window.stemStudio.exportMix({
+    stems: wb.tracks.map((track) => ({ id: track.id, path: track.path })),
+    gains,
+    defaultName: `${wb.title}-${suffix}.${format}`
+  });
+  if (result.cancelled) return wbSetNotice('');
+  if (result.error) return wbSetNotice(result.error, true);
+  wbSetNotice(`已导出：${result.outPath}`);
+});
+document.addEventListener('keydown', (event) => {
+  if ($('workbench').hidden) return;
+  if (event.key === ' ') { event.preventDefault(); (wb.playing ? wbPause() : wbPlay()); }
+  if (event.key === 'Escape') closeWorkbench();
 });
 
 // ---------- 快捷键 ----------
