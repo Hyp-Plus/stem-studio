@@ -1,6 +1,6 @@
 # Stem Studio — Claude Code 项目说明
 
-本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.6.1。
+本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.7.0。
 
 ## 常用命令
 
@@ -33,11 +33,11 @@ npm run package:mac / package:win   # electron-builder 打包
 
 ## 当前重要待办（按优先级）
 
-1. `ci.yml` 在仓库根目录：需 `mkdir -p .github/workflows && mv ci.yml .github/workflows/`（此前远程工具被保护策略拦截）
-2. 引擎分发：推荐 ONNX Runtime 路线（demucs-onnx，MIT，推理仅需 onnxruntime+numpy 约 50MB；六轨模型 258MB）。先做质量对比验证，方案全文在 HANDOFF.md
-3. v0.2.0 之后的功能只过了 lint + 单测，**没在真实媒体文件上端到端跑过**——优先实测批量队列、取消、MPS 回退
-4. UI 微调：①「导出音轨」标签行与模式卡片间距偏小 ②队列行里「完成」状态与「打开」按钮建议对调顺序（状态前、操作后）
-5. 后续：批量外的产品项（任务历史已做）、代码签名/notarization、内置 ffmpeg
+1. 引擎分发 P2：按平台拆分路线并打包验证——Windows 用 ONNX+DML（需实机验证 DML），macOS 在「冻结原版 demucs（保 MPS，~510M）」与「ONNX+CPU（~320M 但慢 2–3 倍）」间决断。P1 质量对比已完成：质量达标，macOS CoreML 编译失败，详见 `docs/引擎分发-P1-质量对比.md`
+2. P2 后续：P3 应用内模型下载（SHA256+断点续传）→ P4 附带静态 ffmpeg → P5 签名/notarization
+3. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板、代码签名/notarization、内置 ffmpeg
+
+已完成（2026-07-26 第二轮会话）：ci.yml 已移入 `.github/workflows/`；真实媒体端到端实测通过（批量队列、运行中追加、取消与进程树终止、六轨勾选过滤、视频输入、损坏文件错误归类；MPS 回退因无法构造 MPS 故障未覆盖）；实测发现失败原因不展示的缺陷已修（v0.7.0）；UI 间距与行内顺序微调已做；package-lock.json 已入库。
 
 ## 已知环境事实
 
