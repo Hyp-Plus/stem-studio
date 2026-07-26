@@ -37,7 +37,7 @@ npm run prepare:ffmpeg              # 整理静态 ffmpeg/ffprobe 到 ffmpeg-dis
 
 ## 当前重要待办（按优先级）
 
-1. Windows 实机验证：跑 `scripts/build-engine-win.ps1`（或 CI 的 build-engine 工作流），验证 DML 执行器在 htdemucs 上可用（mac 的 CoreML 就编译失败，不能想当然）、NSIS 打包接入 `engine-dist/Scripts`；注意 Windows 引擎走 demucs_onnx，模型格式是 .onnx 而非 .th，P3 的模型管理需在 Windows 路线落地时扩展注册表。仓库尚无 GitHub 远程、gh 未登录——用 CI 验证前需先建远程仓库并推送
+1. Windows 收尾：CI 构建已通过（产物 144M，DmlExecutionProvider 已注册，artifact `engine-windows-dml`），剩 GPU 实机冒烟（CI 无独显，DML 走 WARP）、NSIS 打包接入 `engine-dist/Scripts`、P3 模型注册表扩展 .onnx 格式（Windows 引擎走 demucs_onnx，模型是 .onnx 而非 .th）。仓库远程：github.com/Hyp-Plus/stem-studio（私有）
 2. P5 签名/notarization + CI 出正式安装包（本机无 Developer ID 证书）
 3. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板
 
