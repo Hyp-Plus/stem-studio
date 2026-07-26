@@ -6,3 +6,4 @@ out/
 .omx/
 engine-dist/
 .venv-engine/
+ffmpeg-dist/

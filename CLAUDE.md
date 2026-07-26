@@ -1,6 +1,6 @@
 # Stem Studio — Claude Code 项目说明
 
-本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.9.0。
+本地离线运行的桌面音频/视频分轨工具。Electron + 本地 Demucs CLI 推理，目标平台 macOS / Windows。全中文 UI，文件不上传网络。当前版本 v0.10.0。
 
 ## 常用命令
 
@@ -9,9 +9,10 @@ npm install        # 安装依赖
 npm start          # 开发运行
 npm run lint       # node --check 四个 JS 文件
 npm test           # node:test 单元测试（test/lib.test.js，9 用例）
-npm run package:mac / package:win   # electron-builder 打包
+npm run package:mac / package:win   # electron-builder 打包（自动先跑 prepare:ffmpeg）
 bash scripts/build-engine-mac.sh    # 打包前先构建引擎（产物 engine-dist/，已 gitignore）
 powershell -File scripts/build-engine-win.ps1   # Windows 引擎（demucs-onnx+DML）
+npm run prepare:ffmpeg              # 整理静态 ffmpeg/ffprobe 到 ffmpeg-dist/（已 gitignore）
 ```
 
 系统没装 Demucs 时开发运行：`STEM_STUDIO_DEMUCS=/path/to/demucs npm start`
@@ -36,8 +37,8 @@ powershell -File scripts/build-engine-win.ps1   # Windows 引擎（demucs-onnx+D
 
 ## 当前重要待办（按优先级）
 
-1. Windows 实机验证：跑 `scripts/build-engine-win.ps1`（或 CI 的 build-engine 工作流），验证 DML 执行器在 htdemucs 上可用（mac 的 CoreML 就编译失败，不能想当然）、NSIS 打包接入 `engine-dist/Scripts`；注意 Windows 引擎走 demucs_onnx，模型格式是 .onnx 而非 .th，P3 的模型管理需在 Windows 路线落地时扩展注册表
-2. P4 附带静态 ffmpeg → P5 签名/notarization + CI 出正式安装包
+1. Windows 实机验证：跑 `scripts/build-engine-win.ps1`（或 CI 的 build-engine 工作流），验证 DML 执行器在 htdemucs 上可用（mac 的 CoreML 就编译失败，不能想当然）、NSIS 打包接入 `engine-dist/Scripts`；注意 Windows 引擎走 demucs_onnx，模型格式是 .onnx 而非 .th，P3 的模型管理需在 Windows 路线落地时扩展注册表。仓库尚无 GitHub 远程、gh 未登录——用 CI 验证前需先建远程仓库并推送
+2. P5 签名/notarization + CI 出正式安装包（本机无 Developer ID 证书）
 4. 后续产品项：设置更多项（设备选择、shifts 自定义）、htdemucs_ft 高保真模式、导出命名模板
 
 已完成（2026-07-26 第二轮会话）：端到端实测全通过并修复失败原因不展示缺陷（v0.7.0）；UI 微调；引擎分发 P1 质量对比（`docs/引擎分发-P1-质量对比.md`）与 P2 打包接入（`docs/引擎分发-P2-打包接入.md`）——macOS 选定冻结原版 demucs 保 MPS（打包版已实测：自动发现内置引擎、45s 音频 17s、总体积 818M），Windows 构建链就绪（shim+脚本+CI）待实机。

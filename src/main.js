@@ -76,6 +76,30 @@ function resolveDemucs() {
   return commandExists('demucs') ? 'demucs' : null;
 }
 
+// ---------- FFmpeg 发现 ----------
+// demucs 按名字（ffmpeg/ffprobe）在 PATH 里找，所以这里解析出目录、
+// spawn 引擎时把目录前置到 PATH 即可，engine 与 shim 都无需感知
+function resolveFfmpegDir() {
+  const bundled = path.join(process.resourcesPath, 'ffmpeg');
+  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  if (fs.existsSync(path.join(bundled, binary))) return bundled;
+
+  const fromEnv = process.env.STEM_STUDIO_FFMPEG;
+  if (fromEnv && fs.existsSync(fromEnv)) return path.dirname(fromEnv);
+
+  return null;
+}
+
+function engineEnv() {
+  const dir = resolveFfmpegDir();
+  if (!dir) return process.env;
+  return { ...process.env, PATH: `${dir}${path.delimiter}${process.env.PATH || ''}` };
+}
+
+function ffmpegReady() {
+  return Boolean(resolveFfmpegDir()) || commandExists('ffmpeg');
+}
+
 // ---------- 工具函数 ----------
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
@@ -380,7 +404,7 @@ function runJob(job, device, isRetry) {
   if (!demucs) return finishJob(job, 'error', '未找到 Demucs。请在“设置”中选择 Demucs 可执行文件。');
 
   const { args, model, shifts, format } = buildArgs(job, device);
-  const proc = spawn(demucs, args, { windowsHide: true, detached: process.platform !== 'win32' });
+  const proc = spawn(demucs, args, { windowsHide: true, detached: process.platform !== 'win32', env: engineEnv() });
   currentProc = proc;
 
   let log = '';
@@ -490,9 +514,9 @@ ipcMain.handle('start-separation', async (_event, options) => {
 
   if (!resolveDemucs()) throw new Error('未找到 Demucs。请在“设置”中选择 Demucs 可执行文件，或在系统中安装 demucs。');
 
-  // 前置检测：视频输入需要 FFmpeg
+  // 前置检测：视频输入需要 FFmpeg（打包版已内置；开发/异常环境才会触发）
   const hasVideo = inputs.some((file) => lib.isVideoPath(file));
-  if (hasVideo && !commandExists('ffmpeg')) {
+  if (hasVideo && !ffmpegReady()) {
     throw new Error('处理视频文件需要 FFmpeg。请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg），或先将视频转为音频文件。');
   }
 
