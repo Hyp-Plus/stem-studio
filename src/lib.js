@@ -15,7 +15,7 @@ const PERFORMANCE_PROFILES = {
 const VIDEO_EXTENSION_LIST = ['.mp4', '.mov', '.mkv', '.m4v'];
 const FORMAT_ARGS = { wav: [], mp3: ['--mp3', '--mp3-bitrate', '320'], flac: ['--flac'] };
 const FORMAT_EXT = { wav: '.wav', mp3: '.mp3', flac: '.flac' };
-const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'six-stems', windowBounds: null };
+const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'four-stems', windowBounds: null };
 
 // 分离模型注册表：文件名第二段即官方 SHA256 前 8 位，完整校验和用于下载与导入验证
 const MODEL_FILES = {
@@ -160,6 +160,15 @@ function sanitizeSettings(patch) {
   return allowed;
 }
 
+// 给“检查更新”使用：只比较 v主版本.次版本.修订号，不把预发布版本当作稳定更新。
+function isNewerVersion(candidate, current) {
+  const parts = (value) => String(value || '').replace(/^v/, '').split('.').map((part) => Number(part));
+  const [aMajor = 0, aMinor = 0, aPatch = 0] = parts(candidate);
+  const [bMajor = 0, bMinor = 0, bPatch = 0] = parts(current);
+  if (![aMajor, aMinor, aPatch, bMajor, bMinor, bPatch].every(Number.isFinite)) return false;
+  return aMajor !== bMajor ? aMajor > bMajor : aMinor !== bMinor ? aMinor > bMinor : aPatch > bPatch;
+}
+
 module.exports = {
   MODEL_STEMS,
   STEM_LABELS,
@@ -180,5 +189,6 @@ module.exports = {
   verifyModelDigest,
   classifyDownloadFailure,
   computeEffectiveGains,
-  buildMixArgs
+  buildMixArgs,
+  isNewerVersion
 };

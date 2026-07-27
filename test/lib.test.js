@@ -103,6 +103,14 @@ test('sanitizeSettings：过滤白名单外的键', () => {
   assert.deepEqual(lib.sanitizeSettings(null), {});
 });
 
+test('isNewerVersion：只在稳定版更高时提示更新', () => {
+  assert.equal(lib.isNewerVersion('v0.14.0', '0.13.0'), true);
+  assert.equal(lib.isNewerVersion('0.13.1', '0.13.0'), true);
+  assert.equal(lib.isNewerVersion('0.13.0', '0.13.0'), false);
+  assert.equal(lib.isNewerVersion('0.12.9', '0.13.0'), false);
+  assert.equal(lib.isNewerVersion('not-a-version', '0.13.0'), false);
+});
+
 test('MODEL_FILES：注册表自洽（文件名内嵌 SHA256 前 8 位、覆盖两种模式）', () => {
   for (const mode of ['four-stems', 'six-stems']) {
     assert.ok(lib.MODEL_FILES[lib.modelForMode(mode)], `${mode} 应有对应模型`);

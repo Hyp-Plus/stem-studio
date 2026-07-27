@@ -119,6 +119,18 @@ function freeDiskBytes(dir) {
   } catch { return null; }
 }
 
+function outputCollisionNames(inputs, selectedDirectory, mode) {
+  const model = lib.modelForMode(mode);
+  const seen = new Map();
+  for (const input of inputs) {
+    const dir = path.resolve(path.join(outputRoot(input, selectedDirectory), model, path.parse(input).name));
+    const duplicates = seen.get(dir) || [];
+    duplicates.push(input);
+    seen.set(dir, duplicates);
+  }
+  return [...seen.values()].filter((group) => group.length > 1);
+}
+
 function killProcessTree(proc) {
   if (!proc || proc.exitCode !== null) return;
   if (process.platform === 'win32') {
@@ -512,6 +524,13 @@ ipcMain.handle('start-separation', async (_event, options) => {
     : [];
   if (!inputs.length) throw new Error('请先选择有效的媒体文件。');
 
+  const mode = (options && options.mode) || 'four-stems';
+  const collisions = outputCollisionNames(inputs, options && options.output, mode);
+  if (collisions.length) {
+    const names = collisions.flat().map((file) => path.basename(file)).join('、');
+    throw new Error(`检测到同名文件会写入同一导出目录：${names}。请分别处理、修改文件名，或为它们选择不同的导出位置。`);
+  }
+
   if (!resolveDemucs()) throw new Error('未找到 Demucs。请在“设置”中选择 Demucs 可执行文件，或在系统中安装 demucs。');
 
   // 前置检测：视频输入需要 FFmpeg（打包版已内置；开发/异常环境才会触发）
@@ -534,7 +553,7 @@ ipcMain.handle('start-separation', async (_event, options) => {
       id: ++jobCounter,
       input,
       output: (options && options.output) || null,
-      mode: (options && options.mode) || 'four-stems',
+      mode,
       stems: (options && options.stems) || null,
       status: 'pending',
       percent: 0,
@@ -543,7 +562,7 @@ ipcMain.handle('start-separation', async (_event, options) => {
       retriedCpu: false
     });
   }
-  try { saveSettings({ lastMode: (options && options.mode) || 'six-stems' }); } catch { /* non-fatal */ }
+  try { saveSettings({ lastMode: mode }); } catch { /* non-fatal */ }
   broadcastQueue();
   processQueue();
   return { queued: inputs.length };
@@ -563,7 +582,41 @@ ipcMain.handle('cancel-separation', () => {
   return true;
 });
 
+ipcMain.handle('cancel-job', (_event, id) => {
+  const job = queue.find((item) => item.id === Number(id));
+  if (!job || !['pending', 'running'].includes(job.status)) return false;
+  if (job === current) {
+    job.cancelled = true;
+    killProcessTree(currentProc);
+  } else {
+    job.status = 'cancelled';
+    job.message = '已取消';
+    broadcastQueue();
+  }
+  return true;
+});
+
+ipcMain.handle('retry-job', (_event, id) => {
+  const job = queue.find((item) => item.id === Number(id));
+  if (!job || job === current || !['error', 'cancelled'].includes(job.status)) return false;
+  if (!fs.existsSync(job.input)) throw new Error('源文件已不存在，无法重试。');
+  job.status = 'pending';
+  job.percent = 0;
+  job.message = '等待重试';
+  job.cancelled = false;
+  job.retriedCpu = false;
+  broadcastQueue();
+  processQueue();
+  return true;
+});
+
 ipcMain.handle('open-path', (_event, target) => shell.openPath(target));
+
+ipcMain.handle('open-external', (_event, url) => {
+  const parsed = new URL(String(url || ''));
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com') throw new Error('只允许打开官方发布页面。');
+  return shell.openExternal(parsed.toString());
+});
 
 ipcMain.handle('models-status', () => Object.keys(MODEL_FILES).map((name) => modelStatus(name)));
 
@@ -574,6 +627,26 @@ ipcMain.handle('model-download-cancel', (_event, name) => cancelModelDownload(na
 ipcMain.handle('model-import', (_event, name, filePath) => importModel(name, filePath || null));
 
 ipcMain.handle('app-version', () => app.getVersion());
+
+ipcMain.handle('check-for-update', () => new Promise((resolve) => {
+  const request = https.get('https://api.github.com/repos/Hyp-Plus/stem-studio/releases/latest', {
+    headers: { 'User-Agent': 'Stem-Studio' }, timeout: 8000
+  }, (response) => {
+    let body = '';
+    response.setEncoding('utf8');
+    response.on('data', (chunk) => { body += chunk; });
+    response.on('end', () => {
+      if (response.statusCode !== 200) return resolve({ error: `更新服务返回 ${response.statusCode}` });
+      try {
+        const release = JSON.parse(body);
+        const latest = release.tag_name;
+        resolve({ latest, url: release.html_url, available: lib.isNewerVersion(latest, app.getVersion()) });
+      } catch { resolve({ error: '更新信息无法读取。' }); }
+    });
+  });
+  request.on('timeout', () => request.destroy(new Error('ETIMEDOUT')));
+  request.on('error', () => resolve({ error: '无法连接更新服务。' }));
+}));
 
 // ---------- 分离工作台 ----------
 const STEM_ORDER = ['vocals', 'piano', 'guitar', 'bass', 'drums', 'other'];

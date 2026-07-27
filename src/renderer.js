@@ -23,6 +23,13 @@ function setRunning(running) {
   $('output-button').disabled = running;
 }
 
+function updateFirstRunHint() {
+  const sixStems = mode() === 'six-stems';
+  $('first-run-hint').textContent = sixStems
+    ? '高质量六轨会占用更多时间和内存；首次使用会下载约 52 MB 模型。'
+    : '标准四轨适合首次体验；首次使用会下载约 80 MB 模型。';
+}
+
 // ---------- 文件列表 ----------
 function renderPendingFiles() {
   const list = $('file-list');
@@ -49,13 +56,21 @@ function renderQueue() {
     const percent = job.status === 'running' ? ` ${job.percent || 0}%` : '';
     const open = job.status === 'done' && job.outputDir
       ? `<button class="row-bench" data-dir="${escapeHtml(job.outputDir)}" data-name="${escapeHtml(job.name)}">工作台</button><button class="row-open" data-dir="${escapeHtml(job.outputDir)}">打开</button>` : '';
+    const controls = ['pending', 'running'].includes(job.status)
+      ? `<button class="row-cancel" data-id="${job.id}">取消</button>`
+      : ['error', 'cancelled'].includes(job.status)
+        ? `<button class="row-retry" data-id="${job.id}">重试</button>` : '';
     // 失败时把中文错误原因展示在行内，否则用户只能看到"失败"二字
     const detail = job.status === 'error' && job.message
       ? `<span class="row-detail" title="${escapeHtml(job.message)}">${escapeHtml(job.message)}</span>` : '';
-    return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${open}${detail}</div>`;
+    return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${controls}${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
   list.querySelectorAll('.row-bench').forEach((button) => button.addEventListener('click', () => openWorkbench(button.dataset.dir, button.dataset.name)));
+  list.querySelectorAll('.row-cancel').forEach((button) => button.addEventListener('click', () => window.stemStudio.cancelJob(button.dataset.id)));
+  list.querySelectorAll('.row-retry').forEach((button) => button.addEventListener('click', async () => {
+    try { await window.stemStudio.retryJob(button.dataset.id); } catch (error) { setNotice(error.message, true); }
+  }));
 }
 
 async function addFiles(paths) {
@@ -121,7 +136,10 @@ function selectedStems() {
   return Array.from(document.querySelectorAll('#stems input:checked')).map((box) => box.value);
 }
 
-document.querySelectorAll('input[name="mode"]').forEach((radio) => radio.addEventListener('change', renderStems));
+document.querySelectorAll('input[name="mode"]').forEach((radio) => radio.addEventListener('change', () => {
+  renderStems();
+  updateFirstRunHint();
+}));
 
 $('stems-toggle').addEventListener('click', () => {
   const boxes = Array.from(document.querySelectorAll('#stems input'));
@@ -136,7 +154,7 @@ $('output-button').addEventListener('click', async () => {
 });
 
 // ---------- 开始 / 取消 / 打开 ----------
-$('start-button').addEventListener('click', async () => {
+async function startSeparation() {
   if (!state.files.length) return setNotice('请先添加至少一个音频或视频文件。', true);
   const stems = selectedStems();
   if (!stems.length) return setNotice('请至少选择一条要导出的音轨。', true);
@@ -147,9 +165,26 @@ $('start-button').addEventListener('click', async () => {
     await window.stemStudio.start({ inputs: state.files, output: state.output, mode: mode(), stems });
     state.files = [];
   } catch (error) { setRunning(false); state.queueMode = false; setNotice(error.message, true); }
+}
+
+$('start-button').addEventListener('click', startSeparation);
+$('quick-start-button').addEventListener('click', async () => {
+  document.querySelector('input[name="mode"][value="four-stems"]').checked = true;
+  $('format-select').value = 'wav';
+  $('performance-select').value = 'balanced';
+  await window.stemStudio.setSettings({ format: 'wav', performance: 'balanced', lastMode: 'four-stems' });
+  renderStems();
+  updateFirstRunHint();
+  if (!state.files.length) {
+    const files = await window.stemStudio.pickInput();
+    if (!files || !files.length) return;
+    await addFiles(files);
+  }
+  startSeparation();
 });
 $('cancel-button').addEventListener('click', () => window.stemStudio.cancel());
 $('open-button').addEventListener('click', () => window.stemStudio.openPath(state.lastOutput));
+$('bench-button').addEventListener('click', () => openWorkbench(state.lastOutput, '最新分离结果'));
 
 // ---------- 进度、用时与预计剩余 ----------
 const progress = { jobId: null, startedAt: 0 };
@@ -210,6 +245,7 @@ window.stemStudio.onQueueFinished((summary) => {
   $('progress-eta').textContent = '';
   state.lastOutput = summary.lastOutput;
   $('open-button').hidden = !summary.lastOutput;
+  $('bench-button').hidden = !summary.lastOutput;
   $('progress-area').hidden = true;
   const failed = summary.total - summary.doneCount;
   setNotice(failed === 0
@@ -279,6 +315,21 @@ $('default-output-clear-button').addEventListener('click', async () => {
 });
 $('format-select').addEventListener('change', () => window.stemStudio.setSettings({ format: $('format-select').value }));
 $('performance-select').addEventListener('change', () => window.stemStudio.setSettings({ performance: $('performance-select').value }));
+$('update-button').addEventListener('click', async () => {
+  const button = $('update-button');
+  button.disabled = true;
+  $('update-status').textContent = '正在检查更新…';
+  try {
+    const update = await window.stemStudio.checkForUpdate();
+    if (update.error) $('update-status').textContent = update.error;
+    else if (!update.available) $('update-status').textContent = `已是最新版本（v${await window.stemStudio.appVersion()}）。`;
+    else {
+      $('update-status').textContent = `发现 v${update.latest.replace(/^v/, '')}，已打开下载页面。`;
+      await window.stemStudio.openExternal(update.url);
+    }
+  } catch { $('update-status').textContent = '检查更新失败，请稍后重试。'; }
+  button.disabled = false;
+});
 
 // ---------- 模型管理 ----------
 const modelState = new Map(); // name → 最新状态
@@ -608,6 +659,7 @@ async function checkEngine() {
     applySettings(settings);
     state.stemOptions = stemOptions;
     renderStems();
+    updateFirstRunHint();
     refreshHistory();
     refreshModels();
     window.stemStudio.appVersion().then((version) => { $('app-version').textContent = `v${version}`; }).catch(() => {});
