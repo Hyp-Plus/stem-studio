@@ -11,6 +11,8 @@ let queue = [];        // 任务队列（保留终态项用于展示，开始新
 let current = null;    // 正在运行的队列项
 let currentProc = null;
 let jobCounter = 0;
+const authorizedOutputDirs = new Set();
+const authorizedStemFiles = new Set();
 
 const lib = require('./lib');
 const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS, MODEL_FILES } = lib;
@@ -50,6 +52,20 @@ function appendHistory(entry) {
     fs.mkdirSync(path.dirname(historyFile()), { recursive: true });
     fs.writeFileSync(historyFile(), JSON.stringify(next, null, 2));
   } catch { /* 历史记录失败不影响主流程 */ }
+}
+
+function authorizeOutputDir(dir) {
+  if (dir) authorizedOutputDirs.add(path.resolve(dir));
+}
+
+function isAuthorizedOutputDir(dir) {
+  return typeof dir === 'string' && authorizedOutputDirs.has(path.resolve(dir));
+}
+
+function requireTrustedSender(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents || !event.senderFrame.url.startsWith('file:')) {
+    throw new Error('无效的应用请求。');
+  }
 }
 
 // ---------- 引擎发现 ----------
@@ -179,6 +195,7 @@ function modelStatus(name) {
     ready: finalBytes === entry.bytes,
     partBytes,
     downloading: Boolean(active),
+    unsupported: process.platform === 'win32',
     percent: active
       ? lib.downloadPercent(active.received, entry.bytes)
       : (partBytes ? lib.downloadPercent(partBytes, entry.bytes) : (finalBytes === entry.bytes ? 100 : 0))
@@ -202,6 +219,7 @@ function hashFile(filePath, hash) {
 async function startModelDownload(name) {
   const entry = MODEL_FILES[name];
   if (!entry) throw new Error('未知模型');
+  if (process.platform === 'win32') throw new Error('Windows 引擎使用 ONNX 模型，模型由引擎自动管理，暂不支持此处下载或导入。');
   if (modelDownloads.has(name)) return modelStatus(name);
   const { final, part } = modelPaths(name);
   if (fileSize(final) === entry.bytes) return modelStatus(name);
@@ -236,6 +254,14 @@ async function startModelDownload(name) {
 
     const sink = fs.createWriteStream(part, { flags: partBytes ? 'a' : 'w' });
     let lastSent = 0;
+    let handled = false;
+    const fail = (error) => {
+      if (handled) return;
+      handled = true;
+      modelDownloads.delete(name);
+      try { response.unpipe(sink); sink.destroy(); } catch { /* non-fatal */ }
+      broadcastModel(name, state.cancelled ? { info: '已暂停，可继续下载' } : { error: lib.classifyDownloadFailure(error) });
+    };
     response.on('data', (chunk) => {
       hash.update(chunk);
       state.received += chunk.length;
@@ -245,6 +271,8 @@ async function startModelDownload(name) {
     response.pipe(sink);
 
     sink.on('finish', () => {
+      if (handled) return;
+      handled = true;
       modelDownloads.delete(name);
       if (state.cancelled) return broadcastModel(name, { info: '已暂停，可继续下载' });
       const digest = hash.digest('hex');
@@ -257,11 +285,8 @@ async function startModelDownload(name) {
       broadcastModel(name, { info: '下载完成，校验通过' });
     });
 
-    response.on('error', (error) => {
-      modelDownloads.delete(name);
-      try { sink.close(); } catch { /* non-fatal */ }
-      broadcastModel(name, state.cancelled ? { info: '已暂停，可继续下载' } : { error: lib.classifyDownloadFailure(error) });
-    });
+    sink.on('error', fail);
+    response.on('error', fail);
   });
 
   state.request = request;
@@ -289,6 +314,7 @@ function cancelModelDownload(name) {
 async function importModel(name, filePath) {
   const entry = MODEL_FILES[name];
   if (!entry) throw new Error('未知模型');
+  if (process.platform === 'win32') throw new Error('Windows 引擎使用 ONNX 模型，暂不支持导入 Torch 模型文件。');
   let source = filePath;
   if (!source) {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
@@ -359,7 +385,7 @@ function finishJob(job, status, message, outputDir) {
   job.status = status;
   job.message = message;
   job.finishedAt = Date.now();
-  if (outputDir) job.outputDir = outputDir;
+  if (outputDir) { job.outputDir = outputDir; authorizeOutputDir(outputDir); }
   if (status === 'done') job.percent = 100;
   appendHistory({
     name: path.basename(job.input),
@@ -500,7 +526,24 @@ ipcMain.handle('pick-default-output', async () => {
 
 ipcMain.handle('get-settings', () => loadSettings());
 
-ipcMain.handle('set-settings', (_event, patch) => saveSettings(lib.sanitizeSettings(patch)));
+ipcMain.handle('set-settings', (event, patch) => {
+  requireTrustedSender(event);
+  const safe = lib.sanitizeSettings(patch);
+  delete safe.enginePath;
+  delete safe.defaultOutputDir;
+  delete safe.windowBounds;
+  return saveSettings(safe);
+});
+
+ipcMain.handle('clear-engine', (event) => {
+  requireTrustedSender(event);
+  return saveSettings({ enginePath: '' }).enginePath;
+});
+
+ipcMain.handle('clear-default-output', (event) => {
+  requireTrustedSender(event);
+  return saveSettings({ defaultOutputDir: '' }).defaultOutputDir;
+});
 
 ipcMain.handle('engine-status', () => {
   const executable = resolveDemucs();
@@ -518,7 +561,8 @@ ipcMain.handle('clear-history', () => {
 
 ipcMain.handle('get-queue', () => queueSnapshot());
 
-ipcMain.handle('start-separation', async (_event, options) => {
+ipcMain.handle('start-separation', async (event, options) => {
+  requireTrustedSender(event);
   const inputs = Array.isArray(options && options.inputs)
     ? options.inputs.filter((file) => file && fs.existsSync(file))
     : [];
@@ -610,21 +654,29 @@ ipcMain.handle('retry-job', (_event, id) => {
   return true;
 });
 
-ipcMain.handle('open-path', (_event, target) => shell.openPath(target));
+ipcMain.handle('open-path', (event, target) => {
+  requireTrustedSender(event);
+  if (!isAuthorizedOutputDir(target)) throw new Error('只能打开由 Stem Studio 生成的导出目录。');
+  return shell.openPath(target);
+});
 
-ipcMain.handle('open-external', (_event, url) => {
+ipcMain.handle('open-external', (event, url) => {
+  requireTrustedSender(event);
   const parsed = new URL(String(url || ''));
   if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com') throw new Error('只允许打开官方发布页面。');
   return shell.openExternal(parsed.toString());
 });
 
-ipcMain.handle('models-status', () => Object.keys(MODEL_FILES).map((name) => modelStatus(name)));
+ipcMain.handle('models-status', (event) => {
+  requireTrustedSender(event);
+  return Object.keys(MODEL_FILES).map((name) => modelStatus(name));
+});
 
-ipcMain.handle('model-download', (_event, name) => startModelDownload(name));
+ipcMain.handle('model-download', (event, name) => { requireTrustedSender(event); return startModelDownload(name); });
 
-ipcMain.handle('model-download-cancel', (_event, name) => cancelModelDownload(name));
+ipcMain.handle('model-download-cancel', (event, name) => { requireTrustedSender(event); return cancelModelDownload(name); });
 
-ipcMain.handle('model-import', (_event, name, filePath) => importModel(name, filePath || null));
+ipcMain.handle('model-import', (event, name) => { requireTrustedSender(event); return importModel(name, null); });
 
 ipcMain.handle('app-version', () => app.getVersion());
 
@@ -653,31 +705,39 @@ const STEM_ORDER = ['vocals', 'piano', 'guitar', 'bass', 'drums', 'other'];
 const STEM_AUDIO_EXTS = ['.wav', '.flac', '.mp3'];
 
 // 列出输出目录里可加载进工作台的 stem 文件
-ipcMain.handle('list-stems', (_event, dir) => {
-  if (!dir || !fs.existsSync(dir)) return [];
+ipcMain.handle('list-stems', (event, dir) => {
+  requireTrustedSender(event);
+  if (!isAuthorizedOutputDir(dir) || !fs.existsSync(dir)) return [];
   const found = [];
   for (const file of fs.readdirSync(dir)) {
     const ext = path.extname(file).toLowerCase();
     const stem = path.basename(file, ext);
     if (STEM_AUDIO_EXTS.includes(ext) && STEM_ORDER.includes(stem)) {
-      found.push({ id: stem, label: STEM_LABELS[stem] || stem, path: path.join(dir, file) });
+      const stemPath = path.join(dir, file);
+      authorizedStemFiles.add(path.resolve(stemPath));
+      found.push({ id: stem, label: STEM_LABELS[stem] || stem, path: stemPath });
     }
   }
   return found.sort((a, b) => STEM_ORDER.indexOf(a.id) - STEM_ORDER.indexOf(b.id));
 });
 
 // 读音频文件字节流给 decodeAudioData（限制在已知 stem 扩展名内）
-ipcMain.handle('read-audio-file', async (_event, filePath) => {
-  if (!STEM_AUDIO_EXTS.includes(path.extname(filePath || '').toLowerCase())) {
+ipcMain.handle('read-audio-file', async (event, filePath) => {
+  requireTrustedSender(event);
+  if (!authorizedStemFiles.has(path.resolve(filePath || '')) || !STEM_AUDIO_EXTS.includes(path.extname(filePath || '').toLowerCase())) {
     throw new Error('不支持的音频文件类型。');
   }
   return fs.promises.readFile(filePath);
 });
 
 // 按工作台当前增益混音导出（弹保存对话框；ffmpeg 已内置）
-ipcMain.handle('export-mix', async (_event, payload) => {
+ipcMain.handle('export-mix', async (event, payload) => {
+  requireTrustedSender(event);
   const { stems, gains, defaultName } = payload || {};
   if (!Array.isArray(stems) || !stems.length) return { error: '没有可导出的音轨。' };
+  if (!stems.every((stem) => stem && STEM_ORDER.includes(stem.id) && authorizedStemFiles.has(path.resolve(stem.path || '')))) {
+    return { error: '音轨来源无效，请从已完成的分离结果重新打开工作台。' };
+  }
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: '导出混音',
     defaultPath: path.join(path.dirname(stems[0].path), defaultName || '混音.wav'),
@@ -724,6 +784,10 @@ function createWindow() {
     }
   });
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('file:')) event.preventDefault();
+  });
   mainWindow.on('close', () => {
     try { saveSettings({ windowBounds: mainWindow.getBounds() }); } catch { /* non-fatal */ }
   });
@@ -740,6 +804,7 @@ function stopEverything() {
 }
 
 app.whenReady().then(() => {
+  for (const entry of loadHistory()) authorizeOutputDir(entry.outputDir);
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

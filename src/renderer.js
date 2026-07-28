@@ -301,7 +301,7 @@ $('engine-button').addEventListener('click', async () => {
   if (enginePath) { $('engine-path').textContent = enginePath; checkEngine(); }
 });
 $('engine-clear-button').addEventListener('click', async () => {
-  await window.stemStudio.setSettings({ enginePath: '' });
+  await window.stemStudio.clearEngine();
   $('engine-path').textContent = '自动检测';
   checkEngine();
 });
@@ -310,7 +310,7 @@ $('default-output-button').addEventListener('click', async () => {
   if (dir) $('default-output-path').textContent = dir;
 });
 $('default-output-clear-button').addEventListener('click', async () => {
-  await window.stemStudio.setSettings({ defaultOutputDir: '' });
+  await window.stemStudio.clearDefaultOutput();
   $('default-output-path').textContent = '与源文件同目录';
 });
 $('format-select').addEventListener('change', () => window.stemStudio.setSettings({ format: $('format-select').value }));
@@ -337,6 +337,7 @@ const modelState = new Map(); // name → 最新状态
 function formatMb(bytes) { return `${Math.round(bytes / 1024 / 1024)} MB`; }
 
 function modelStatusText(status) {
+  if (status.unsupported) return '由 Windows 引擎自动管理';
   if (status.ready) return '已就绪';
   if (status.downloading) return `下载中 ${status.percent == null ? '' : status.percent + '%'}`;
   if (status.partBytes) return `已暂停 ${status.percent}%`;
@@ -347,8 +348,8 @@ function renderModels() {
   const list = $('model-list');
   if (!modelState.size) { list.innerHTML = '<p class="file-list-empty">正在读取模型状态…</p>'; return; }
   list.innerHTML = Array.from(modelState.values()).map((status) => {
-    const chipClass = status.ready ? 'done' : (status.downloading ? 'running' : 'pending');
-    const buttons = status.ready
+    const chipClass = status.unsupported ? 'pending' : (status.ready ? 'done' : (status.downloading ? 'running' : 'pending'));
+    const buttons = status.unsupported || status.ready
       ? ''
       : status.downloading
         ? `<button class="model-cancel" data-model="${status.name}">暂停</button>`
