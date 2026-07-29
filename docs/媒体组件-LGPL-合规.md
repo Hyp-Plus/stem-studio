@@ -9,7 +9,7 @@ Stem Studio 的安装包不携带 FFmpeg。需要视频输入或混音导出时�
 - 各平台 `ffmpeg` / `ffprobe` 可执行文件；
 - 对应的 `stem-studio-media-*.json` 文件（URL、字节数、SHA-256、构建参数）；
 - 对应的 FFmpeg 官方源码压缩包；
-- `FFMPEG-LGPL-2.1.txt`。
+- 对应平台的 LGPL 2.1 文本（`FFMPEG-LGPL-2.1-macos-arm64.txt` 或 `FFMPEG-LGPL-2.1-windows-x64.txt`）。
 
 应用仅接受当前版本 Release、`github.com` / `githubusercontent.com` HTTPS 地址、固定文件名和 64 位 SHA-256 的清单；下载后逐文件校验。
 

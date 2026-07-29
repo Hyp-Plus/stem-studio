@@ -20,7 +20,7 @@ mkdir -p "$out"
 cp ffmpeg "$out/stem-studio-ffmpeg-macos-arm64"
 cp ffprobe "$out/stem-studio-ffprobe-macos-arm64"
 cp "$work/ffmpeg.tar.xz" "$out/stem-studio-ffmpeg-${version}-source-macos-arm64.tar.xz"
-cp COPYING.LGPLv2.1 "$out/FFMPEG-LGPL-2.1.txt"
+cp COPYING.LGPLv2.1 "$out/FFMPEG-LGPL-2.1-macos-arm64.txt"
 ./ffmpeg -L | grep -qi 'nonfree parts' && { echo '错误：构建包含 nonfree 部分'; exit 1; } || true
 
 python3 - "$out" "$tag" "$version" <<'PY'

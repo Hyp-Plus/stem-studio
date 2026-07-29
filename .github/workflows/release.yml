@@ -70,7 +70,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --draft --title "Stem Studio ${GITHUB_REF_NAME}" --generate-notes dist/*.dmg media-dist/macos-arm64/* || gh release upload "${GITHUB_REF_NAME}" dist/*.dmg media-dist/macos-arm64/*
+        run: gh release create "${GITHUB_REF_NAME}" --draft --title "Stem Studio ${GITHUB_REF_NAME}" --generate-notes dist/*.dmg media-dist/macos-arm64/* || gh release upload "${GITHUB_REF_NAME}" --clobber dist/*.dmg media-dist/macos-arm64/*
 
   windows:
     name: Windows 安装包（nsis）
@@ -132,5 +132,5 @@ jobs:
         run: |
           $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
           $media = Get-ChildItem media-dist/windows-x64/*
-          gh release upload "$env:GITHUB_REF_NAME" $exe.FullName $media.FullName
+          gh release upload "$env:GITHUB_REF_NAME" --clobber $exe.FullName $media.FullName
           if ($LASTEXITCODE -ne 0) { gh release create "$env:GITHUB_REF_NAME" --draft --title "Stem Studio $env:GITHUB_REF_NAME" --generate-notes $exe.FullName $media.FullName }

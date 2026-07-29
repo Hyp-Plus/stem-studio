@@ -22,7 +22,7 @@ mkdir -p "$out"
 cp ffmpeg.exe "$out/stem-studio-ffmpeg-windows-x64.exe"
 cp ffprobe.exe "$out/stem-studio-ffprobe-windows-x64.exe"
 cp "$work/ffmpeg.tar.xz" "$out/stem-studio-ffmpeg-${version}-source-windows-x64.tar.xz"
-cp COPYING.LGPLv2.1 "$out/FFMPEG-LGPL-2.1.txt"
+cp COPYING.LGPLv2.1 "$out/FFMPEG-LGPL-2.1-windows-x64.txt"
 ./ffmpeg.exe -L | grep -qi 'nonfree parts' && { echo '错误：构建包含 nonfree 部分'; exit 1; } || true
 
 python - "$out" "$tag" "$version" <<'PY'
