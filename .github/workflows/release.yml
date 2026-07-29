@@ -38,8 +38,6 @@ jobs:
         run: bash scripts/build-engine-mac.sh
       - name: 安装依赖
         run: npm ci
-      - name: 准备内置 FFmpeg
-        run: npm run prepare:ffmpeg
       - name: 打包（有证书则签名+公证，否则未签名）
         env:
           CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
@@ -96,8 +94,6 @@ jobs:
         run: ./scripts/build-engine-win.ps1
       - name: 安装依赖
         run: npm ci
-      - name: 准备内置 FFmpeg
-        run: npm run prepare:ffmpeg
       - name: 打包（有证书则签名，否则未签名）
         shell: pwsh
         env:

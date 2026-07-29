@@ -93,13 +93,10 @@ function resolveDemucs() {
 }
 
 // ---------- FFmpeg 发现 ----------
-// demucs 按名字（ffmpeg/ffprobe）在 PATH 里找，所以这里解析出目录、
-// spawn 引擎时把目录前置到 PATH 即可，engine 与 shim 都无需感知
+// 为避免把许可不明的二进制带入安装包，Stem Studio 不再内置 FFmpeg。
+// 用户可通过系统 PATH 或 STEM_STUDIO_FFMPEG 指向自己安装的版本。
+// demucs 按名字（ffmpeg/ffprobe）在 PATH 里找，所以只需把指定目录前置。
 function resolveFfmpegDir() {
-  const bundled = path.join(process.resourcesPath, 'ffmpeg');
-  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-  if (fs.existsSync(path.join(bundled, binary))) return bundled;
-
   const fromEnv = process.env.STEM_STUDIO_FFMPEG;
   if (fromEnv && fs.existsSync(fromEnv)) return path.dirname(fromEnv);
 
@@ -577,7 +574,7 @@ ipcMain.handle('start-separation', async (event, options) => {
 
   if (!resolveDemucs()) throw new Error('未找到 Demucs。请在“设置”中选择 Demucs 可执行文件，或在系统中安装 demucs。');
 
-  // 前置检测：视频输入需要 FFmpeg（打包版已内置；开发/异常环境才会触发）
+  // 前置检测：视频输入需要用户在系统中安装 FFmpeg。
   const hasVideo = inputs.some((file) => lib.isVideoPath(file));
   if (hasVideo && !ffmpegReady()) {
     throw new Error('处理视频文件需要 FFmpeg。请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg），或先将视频转为音频文件。');
@@ -730,7 +727,7 @@ ipcMain.handle('read-audio-file', async (event, filePath) => {
   return fs.promises.readFile(filePath);
 });
 
-// 按工作台当前增益混音导出（弹保存对话框；ffmpeg 已内置）
+// 按工作台当前增益混音导出（使用用户系统安装的 FFmpeg）
 ipcMain.handle('export-mix', async (event, payload) => {
   requireTrustedSender(event);
   const { stems, gains, defaultName } = payload || {};
@@ -750,6 +747,9 @@ ipcMain.handle('export-mix', async (event, payload) => {
   if (canceled || !filePath) return { cancelled: true };
   const args = lib.buildMixArgs(stems, gains || {}, filePath);
   if (!args) return { error: '所有音轨都是静音，没有可导出的声音。' };
+  if (!ffmpegReady()) {
+    return { error: '导出混音需要 FFmpeg。请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg），然后重试。' };
+  }
 
   const dir = resolveFfmpegDir();
   const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';

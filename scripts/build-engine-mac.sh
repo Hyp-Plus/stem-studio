@@ -20,6 +20,9 @@ if [ ! -x "$venv/bin/pyinstaller" ]; then
   "$venv/bin/pip" install --quiet --upgrade pip
   "$venv/bin/pip" install --quiet --retries 10 --timeout 60 "numpy<2" demucs pyinstaller
 fi
+if [ ! -x "$venv/bin/pip-licenses" ]; then
+  "$venv/bin/pip" install --quiet pip-licenses
+fi
 
 # 2. 冻结入口：freeze_support 必须最先执行，否则 demucs 的 multiprocessing
 #    子进程会带 -B -S -I -c 重新执行本二进制并报参数错误
@@ -46,8 +49,13 @@ mkdir -p "$dist"
 mv "$workdir/dist/demucs" "$dist/bin"
 rm -rf "$workdir"
 
+# 4.1 生成此构建实际包含的依赖与许可证清单；随 engine 资源一同进入安装包。
+"$venv/bin/pip-licenses" --format=json --with-license-file --with-notice-file \
+  --output-file "$dist/THIRD_PARTY_ENGINE_NOTICES.json"
+
 # 5. 冒烟自检
 "$dist/bin/demucs" --help >/dev/null
 du -sh "$dist/bin"
 echo "引擎构建完成：$dist/bin（打包时复制为 resources/engine/bin）"
+echo "许可证清单：$dist/THIRD_PARTY_ENGINE_NOTICES.json"
 echo "注意：模型文件不含在内（htdemucs 80M / htdemucs_6s 53M），首次分离时自动下载到 ~/.cache/torch。"

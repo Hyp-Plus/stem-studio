@@ -21,7 +21,7 @@ $python = Join-Path $venv "Scripts\python.exe"
 
 # 2. 安装依赖：demucs-onnx（含 mp3 编码）+ DirectML 版 onnxruntime + PyInstaller
 & $pip install --upgrade pip
-& $pip install "demucs-onnx[mp3]" pyinstaller
+& $pip install "demucs-onnx[mp3]" pyinstaller pip-licenses
 # onnxruntime-directml 与 onnxruntime 同名冲突，先卸载 CPU 版再装 DML 版
 & $pip uninstall -y onnxruntime
 & $pip install onnxruntime-directml
@@ -44,8 +44,13 @@ $scripts = Join-Path $dist "Scripts"
 if (Test-Path $scripts) { Remove-Item -Recurse -Force $scripts }
 Move-Item (Join-Path $dist "demucs") $scripts
 
+# 4.1 生成此构建实际包含的依赖与许可证清单；随 engine 资源一同进入安装包。
+& (Join-Path $venv "Scripts\pip-licenses.exe") --format=json --with-license-file --with-notice-file `
+    --output-file (Join-Path $dist "THIRD_PARTY_ENGINE_NOTICES.json")
+
 # 5. 冒烟自检 + DirectML 可用性报告（DML 需要 Windows 实机验证）
 & (Join-Path $scripts "demucs.exe") --help | Out-Null
 & $python -c "import onnxruntime; print('可用执行器:', onnxruntime.get_available_providers())"
 Write-Host "引擎构建完成：$scripts（打包时复制为 resources/engine/Scripts）"
+Write-Host "许可证清单：$(Join-Path $dist 'THIRD_PARTY_ENGINE_NOTICES.json')"
 Write-Host "注意：模型文件不含在内，由应用首次运行时下载（P3），或手动放入缓存。"
