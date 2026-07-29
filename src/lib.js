@@ -19,11 +19,11 @@ const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', 
 const MEDIA_COMPONENTS = {
   'darwin-arm64': {
     label: 'macOS Apple Silicon 媒体组件',
-    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.3/stem-studio-media-macos-arm64.json'
+    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.4/stem-studio-media-macos-arm64.json'
   },
   'win32-x64': {
     label: 'Windows x64 媒体组件',
-    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.3/stem-studio-media-windows-x64.json'
+    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.4/stem-studio-media-windows-x64.json'
   }
 };
 
@@ -91,7 +91,7 @@ function classifyFailure(log, isVideo) {
     return '模型下载失败。首次使用需要联网下载模型文件，请检查网络后重试。';
   }
   if (isVideo && /ffmpeg|no backend|could not.{0,30}(decode|load|open)/i.test(log)) {
-    return '无法解码该视频文件。处理视频需要 FFmpeg，请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg）。';
+    return '无法解码该视频文件。请在“设置”中点击“安装并继续”安装媒体组件后重试。';
   }
   if (/could not.{0,30}(decode|load|open)|no backend|invalid data/i.test(log)) {
     return '无法读取该媒体文件，文件可能已损坏或格式不受支持。';
@@ -131,7 +131,9 @@ function validateMediaManifest(manifest, expectedUrl) {
     seen.add(file.name);
     files.push({ name: file.name, url, sha256: file.sha256.toLowerCase(), bytes: file.bytes });
   }
-  return seen.has('ffmpeg') || seen.has('ffmpeg.exe') ? files : null;
+  const macosPair = seen.has('ffmpeg') && seen.has('ffprobe');
+  const windowsPair = seen.has('ffmpeg.exe') && seen.has('ffprobe.exe');
+  return macosPair || windowsPair ? files : null;
 }
 
 // 把模型下载失败翻译成中文提示

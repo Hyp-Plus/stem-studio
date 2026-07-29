@@ -86,7 +86,7 @@ test('nextProgress：识别模型下载提示', () => {
 test('classifyFailure：常见错误归类为中文提示', () => {
   assert.match(lib.classifyFailure('RuntimeError: MPS backend out of memory', false), /内存不足/);
   assert.match(lib.classifyFailure('urllib.error.URLError: could not download model', false), /模型下载失败/);
-  assert.match(lib.classifyFailure('ffmpeg not found', true), /FFmpeg/);
+  assert.match(lib.classifyFailure('ffmpeg not found', true), /安装并继续/);
   assert.match(lib.classifyFailure('soundfile could not open file: invalid data', false), /无法读取/);
   assert.equal(lib.classifyFailure('some unknown stack trace', false), null);
 });
@@ -158,6 +158,9 @@ test('validateMediaManifest：只接受当前 Release 的双二进制与完整�
   };
   assert.equal(lib.validateMediaManifest(manifest, manifestUrl).length, 2);
   manifest.files[1].url = 'https://example.com/ffprobe';
+  assert.equal(lib.validateMediaManifest(manifest, manifestUrl), null);
+  manifest.files[1].url = `${base}stem-studio-ffprobe-macos-arm64`;
+  manifest.files[1].name = 'ffmpeg';
   assert.equal(lib.validateMediaManifest(manifest, manifestUrl), null);
 });
 
