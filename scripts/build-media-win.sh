@@ -12,7 +12,8 @@ source_url="https://ffmpeg.org/releases/ffmpeg-${version}.tar.xz"
 curl --fail --location --retry 3 --output "$work/ffmpeg.tar.xz" "$source_url"
 tar -xf "$work/ffmpeg.tar.xz" -C "$work"
 cd "$work/ffmpeg-${version}"
-./configure --target-os=mingw32 --arch=x86_64 --enable-cross-compile --cross-prefix=x86_64-w64-mingw32- \
+# MINGW64 shell 已经提供目标平台的 gcc/ar/ranlib，无需再指定交叉编译前缀。
+./configure --target-os=mingw32 --arch=x86_64 \
   --disable-gpl --disable-nonfree --disable-autodetect --disable-debug --disable-doc \
   --disable-shared --enable-static --enable-small
 make -j"$(nproc)"
