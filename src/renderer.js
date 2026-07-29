@@ -315,6 +315,30 @@ $('default-output-clear-button').addEventListener('click', async () => {
 });
 $('format-select').addEventListener('change', () => window.stemStudio.setSettings({ format: $('format-select').value }));
 $('performance-select').addEventListener('change', () => window.stemStudio.setSettings({ performance: $('performance-select').value }));
+function renderMedia(status) {
+  const button = $('media-install-button');
+  if (status.unsupported) {
+    $('media-status').textContent = '当前平台暂不提供一键媒体组件';
+    button.hidden = true;
+    return;
+  }
+  if (status.ready) {
+    $('media-status').textContent = `已就绪（v${status.version}）`;
+    button.hidden = true;
+    return;
+  }
+  button.hidden = false;
+  button.disabled = Boolean(status.downloading);
+  button.textContent = status.downloading ? `下载中 ${status.percent || 0}%` : '安装并继续';
+  $('media-status').textContent = status.error || (status.downloading ? '正在下载并校验媒体组件…' : '未安装（视频与混音导出需要）');
+}
+async function refreshMedia() {
+  try { renderMedia(await window.stemStudio.mediaStatus()); } catch { $('media-status').textContent = '媒体组件状态读取失败'; }
+}
+$('media-install-button').addEventListener('click', () => window.stemStudio.mediaInstall().catch((error) => {
+  renderMedia({ error: error.message });
+}));
+window.stemStudio.onMediaProgress(renderMedia);
 $('update-button').addEventListener('click', async () => {
   const button = $('update-button');
   button.disabled = true;
@@ -663,6 +687,7 @@ async function checkEngine() {
     updateFirstRunHint();
     refreshHistory();
     refreshModels();
+    refreshMedia();
     window.stemStudio.appVersion().then((version) => { $('app-version').textContent = `v${version}`; }).catch(() => {});
   } catch { /* 初始化失败不阻塞界面 */ }
   checkEngine();

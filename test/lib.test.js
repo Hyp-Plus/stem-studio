@@ -146,6 +146,21 @@ test('verifyModelDigest：完整校验和匹配注册表', () => {
   assert.equal(lib.verifyModelDigest('nope', good), false);
 });
 
+test('validateMediaManifest：只接受当前 Release 的双二进制与完整校验和', () => {
+  const manifestUrl = lib.MEDIA_COMPONENTS['darwin-arm64'].manifestUrl;
+  const base = manifestUrl.replace(/[^/]+$/, '');
+  const manifest = {
+    version: '0.17.0',
+    files: [
+      { name: 'ffmpeg', url: `${base}stem-studio-ffmpeg-macos-arm64`, sha256: 'a'.repeat(64), bytes: 1024 },
+      { name: 'ffprobe', url: `${base}stem-studio-ffprobe-macos-arm64`, sha256: 'b'.repeat(64), bytes: 2048 }
+    ]
+  };
+  assert.equal(lib.validateMediaManifest(manifest, manifestUrl).length, 2);
+  manifest.files[1].url = 'https://example.com/ffprobe';
+  assert.equal(lib.validateMediaManifest(manifest, manifestUrl), null);
+});
+
 test('classifyDownloadFailure：网络错误归类为中文提示', () => {
   assert.match(lib.classifyDownloadFailure(new Error('getaddrinfo ENOTFOUND dl.fbaipublicfiles.com')), /无法连接/);
   assert.match(lib.classifyDownloadFailure(new Error('read ECONNRESET')), /续传/);

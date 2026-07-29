@@ -30,6 +30,10 @@ Pretrained model weights are downloaded directly from the upstream Demucs host w
 
 Users are responsible for ensuring they have all rights needed to process, copy, export, share, or publish any audio or video supplied to Stem Studio. Stem Studio grants no rights in third-party music, recordings, video, or other content.
 
-## FFmpeg
+## FFmpeg media component
 
-Stem Studio does not include or distribute FFmpeg binaries. If a user installs FFmpeg separately, that user is responsible for the applicable FFmpeg license, source-code obligations, codec patents, and local law. FFmpeg is a trademark of Fabrice Bellard.
+The installer does not contain FFmpeg. When a user explicitly installs the optional media component, Stem Studio downloads platform-specific FFmpeg and FFprobe executables from the same GitHub Release.
+
+Those executables are built by this project’s CI from the official FFmpeg source with `--disable-gpl --disable-nonfree --disable-autodetect --disable-debug --disable-doc --disable-shared --enable-static --enable-small`. Each release provides the matching source archive, configure command, LGPL text, and SHA-256 values in its media-component manifest.
+
+FFmpeg is licensed under LGPL 2.1 or later when built without GPL components. Codec patents and local-law obligations may still apply. FFmpeg is a trademark of Fabrice Bellard.

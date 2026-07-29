@@ -16,6 +16,16 @@ const VIDEO_EXTENSION_LIST = ['.mp4', '.mov', '.mkv', '.m4v'];
 const FORMAT_ARGS = { wav: [], mp3: ['--mp3', '--mp3-bitrate', '320'], flac: ['--flac'] };
 const FORMAT_EXT = { wav: '.wav', mp3: '.mp3', flac: '.flac' };
 const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'four-stems', windowBounds: null };
+const MEDIA_COMPONENTS = {
+  'darwin-arm64': {
+    label: 'macOS Apple Silicon 媒体组件',
+    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.0/stem-studio-media-macos-arm64.json'
+  },
+  'win32-x64': {
+    label: 'Windows x64 媒体组件',
+    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.0/stem-studio-media-windows-x64.json'
+  }
+};
 
 // 分离模型注册表：文件名第二段即官方 SHA256 前 8 位，完整校验和用于下载与导入验证
 const MODEL_FILES = {
@@ -106,6 +116,24 @@ function verifyModelDigest(model, hexDigest) {
   return Boolean(entry && typeof hexDigest === 'string' && hexDigest.toLowerCase() === entry.sha256);
 }
 
+// 一键媒体组件的远端清单只允许下载当前版本 Release 中的 ffmpeg / ffprobe。
+function validateMediaManifest(manifest, expectedUrl) {
+  if (!manifest || typeof manifest !== 'object' || !/^\d+\.\d+\.\d+$/.test(String(manifest.version || ''))) return null;
+  if (!Array.isArray(manifest.files) || manifest.files.length !== 2) return null;
+  const expectedBase = new URL(expectedUrl).href.replace(/[^/]+$/, '');
+  const seen = new Set();
+  const files = [];
+  for (const file of manifest.files) {
+    if (!file || typeof file.name !== 'string' || !['ffmpeg', 'ffmpeg.exe', 'ffprobe', 'ffprobe.exe'].includes(file.name)) return null;
+    if (seen.has(file.name) || !/^[a-f0-9]{64}$/i.test(String(file.sha256 || '')) || !Number.isFinite(file.bytes) || file.bytes < 1024) return null;
+    const url = String(file.url || '');
+    if (!url.startsWith(expectedBase) || !/\/stem-studio-ff(?:mpeg|probe)-/.test(url)) return null;
+    seen.add(file.name);
+    files.push({ name: file.name, url, sha256: file.sha256.toLowerCase(), bytes: file.bytes });
+  }
+  return seen.has('ffmpeg') || seen.has('ffmpeg.exe') ? files : null;
+}
+
 // 把模型下载失败翻译成中文提示
 function classifyDownloadFailure(reason) {
   const text = String(reason && reason.message ? reason.message : reason || '');
@@ -178,6 +206,7 @@ module.exports = {
   FORMAT_EXT,
   DEFAULT_SETTINGS,
   MODEL_FILES,
+  MEDIA_COMPONENTS,
   isVideoPath,
   modelForMode,
   buildDemucsArgs,
@@ -187,6 +216,7 @@ module.exports = {
   resumeRange,
   downloadPercent,
   verifyModelDigest,
+  validateMediaManifest,
   classifyDownloadFailure,
   computeEffectiveGains,
   buildMixArgs,

@@ -26,7 +26,7 @@
 ## 功能
 
 - 标准四轨（`htdemucs`）与高质量六轨（`htdemucs_6s`）两种分离模式，可勾选只导出需要的音轨（人声、鼓、贝斯、钢琴、吉他、其他）
-- **离线分离**：分离引擎已内置；音频可直接处理，视频输入和混音导出需使用用户自行安装的 FFmpeg
+- **一键媒体支持**：音频可直接处理；首次使用视频输入或混音导出时，可在应用内一键安装并校验 LGPL-only 媒体组件
 - **批量任务队列**：多选/多文件拖拽，顺序处理；任务进行中拖入的文件自动加入队列
 - **更顺的首次体验**：标准四轨推荐、快速分离入口，以及首次模型下载提示
 - **模型管理**：设置页可预下载模型、断点续传、离线导入，全部经 SHA256 完整校验
@@ -59,7 +59,7 @@ CI：`.github/workflows/ci.yml` 三平台 lint + 测试；`build-engine.yml`（�
 ### 引擎与 FFmpeg 发现顺序
 
 引擎：设置页配置的路径 → 环境变量 `STEM_STUDIO_DEMUCS` → 打包资源 `resources/engine/`（mac `bin/demucs`、win `Scripts/demucs.exe`）→ 系统 PATH。
-FFmpeg：本应用不内置或分发 FFmpeg 二进制。视频输入与工作台混音导出需要用户自行安装合规版本（macOS：`brew install ffmpeg`；Windows：`winget install ffmpeg`），或用 `STEM_STUDIO_FFMPEG` 指向该可执行文件。
+FFmpeg：安装包本体不携带 FFmpeg。首次使用视频输入或工作台混音导出时，可在「设置 → 媒体组件」一键下载 Stem Studio CI 构建的 LGPL-only 组件；下载过程会校验 SHA256。高级用户也可用 `STEM_STUDIO_FFMPEG` 指向自行安装的版本。
 
 ## 打包发布
 
@@ -76,7 +76,7 @@ npm run package:mac                              # ② 打包 DMG（不分发 FF
 
 - 请仅处理拥有版权或已获授权的音频、视频；本项目不授予任何音乐作品、录音或视频的使用权。
 - 分离引擎基于 Demucs；模型权重由其上游官方地址按需下载，不随安装包分发。使用模型前请确认其上游许可适合您的用途，特别是商业用途。
-- 安装包不内置 FFmpeg。自行安装 FFmpeg 时，请自行遵守其许可证、专利和当地法律要求。
+- 媒体组件由 CI 从 FFmpeg 官方源码构建，显式关闭 GPL 与 nonfree 选项；同一 Release 提供对应源码、构建参数和 LGPL 文本。编解码专利与当地法律要求仍需自行评估。
 - 随包提供的第三方组件、版权归属与许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Stem Studio 与 Meta、Demucs 或 FFmpeg 项目没有隶属或官方关联。
 
 ## 输出目录结构

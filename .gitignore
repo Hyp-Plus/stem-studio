@@ -7,3 +7,4 @@ out/
 engine-dist/
 .venv-engine/
 ffmpeg-dist/
+media-dist/

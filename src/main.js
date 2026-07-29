@@ -15,7 +15,7 @@ const authorizedOutputDirs = new Set();
 const authorizedStemFiles = new Set();
 
 const lib = require('./lib');
-const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS, MODEL_FILES } = lib;
+const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS, MODEL_FILES, MEDIA_COMPONENTS } = lib;
 const MIN_FREE_DISK_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
 // ---------- 设置持久化 ----------
@@ -97,6 +97,11 @@ function resolveDemucs() {
 // 用户可通过系统 PATH 或 STEM_STUDIO_FFMPEG 指向自己安装的版本。
 // demucs 按名字（ffmpeg/ffprobe）在 PATH 里找，所以只需把指定目录前置。
 function resolveFfmpegDir() {
+  const installed = mediaComponentDir();
+  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const probe = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+  if (installed && fs.existsSync(path.join(installed, binary)) && fs.existsSync(path.join(installed, probe))) return installed;
+
   const fromEnv = process.env.STEM_STUDIO_FFMPEG;
   if (fromEnv && fs.existsSync(fromEnv)) return path.dirname(fromEnv);
 
@@ -111,6 +116,134 @@ function engineEnv() {
 
 function ffmpegReady() {
   return Boolean(resolveFfmpegDir()) || commandExists('ffmpeg');
+}
+
+// ---------- 一键媒体组件 ----------
+// 组件由本项目 Release 提供：仅 LGPL-only FFmpeg，首次需要时下载并逐文件 SHA256 校验。
+function mediaPlatformKey() { return `${process.platform}-${process.arch}`; }
+
+function mediaComponentDir() {
+  if (!MEDIA_COMPONENTS[mediaPlatformKey()]) return null;
+  return path.join(app.getPath('userData'), 'media', mediaPlatformKey());
+}
+
+function mediaManifestFile() {
+  const dir = mediaComponentDir();
+  return dir && path.join(dir, 'manifest.json');
+}
+
+function readMediaManifest() {
+  try { return JSON.parse(fs.readFileSync(mediaManifestFile(), 'utf8')); } catch { return null; }
+}
+
+let mediaDownload = null;
+
+function mediaStatus(extra = {}) {
+  const component = MEDIA_COMPONENTS[mediaPlatformKey()];
+  if (!component) return { unsupported: true, ...extra };
+  const dir = mediaComponentDir();
+  const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const probe = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+  const manifest = readMediaManifest();
+  return {
+    label: component.label,
+    ready: Boolean(manifest && fs.existsSync(path.join(dir, binary)) && fs.existsSync(path.join(dir, probe))),
+    version: manifest && manifest.version,
+    downloading: Boolean(mediaDownload),
+    percent: mediaDownload ? lib.downloadPercent(mediaDownload.received, mediaDownload.total) : 0,
+    ...extra
+  };
+}
+
+function broadcastMedia(extra) { send('media-progress', mediaStatus(extra)); }
+
+function allowedDownloadUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.hostname === 'github.com' || url.hostname.endsWith('.githubusercontent.com'));
+  } catch { return false; }
+}
+
+function requestHttps(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 4 || !allowedDownloadUrl(url)) return reject(new Error('媒体组件下载地址无效。'));
+    const request = https.get(url, { headers: { 'User-Agent': 'Stem-Studio' }, timeout: 30000 }, (response) => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+        const next = response.headers.location;
+        response.resume();
+        return next ? requestHttps(new URL(next, url).toString(), redirects + 1).then(resolve, reject) : reject(new Error('下载服务器未提供跳转地址。'));
+      }
+      if (response.statusCode !== 200) { response.resume(); return reject(new Error(`下载服务器返回 ${response.statusCode}`)); }
+      resolve(response);
+    });
+    request.on('timeout', () => request.destroy(new Error('ETIMEDOUT')));
+    request.on('error', reject);
+  });
+}
+
+async function fetchMediaManifest(url) {
+  const response = await requestHttps(url);
+  let body = '';
+  for await (const chunk of response) body += chunk;
+  try {
+    const parsed = lib.validateMediaManifest(JSON.parse(body), url);
+    if (!parsed) throw new Error('媒体组件清单校验失败。');
+    return { version: JSON.parse(body).version, files: parsed };
+  } catch (error) { throw new Error(error.message || '媒体组件清单无法读取。'); }
+}
+
+async function downloadMediaFile(file, target) {
+  const response = await requestHttps(file.url);
+  const hash = crypto.createHash('sha256');
+  const sink = fs.createWriteStream(`${target}.part`);
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      try { response.unpipe(sink); sink.destroy(); } catch { /* non-fatal */ }
+      reject(error);
+    };
+    response.on('data', (chunk) => {
+      hash.update(chunk);
+      mediaDownload.received += chunk.length;
+      broadcastMedia();
+    });
+    response.on('error', fail);
+    sink.on('error', fail);
+    sink.on('finish', () => { if (!settled) { settled = true; resolve(); } });
+    response.pipe(sink);
+  });
+  if (fileSize(`${target}.part`) !== file.bytes || hash.digest('hex') !== file.sha256) {
+    try { fs.rmSync(`${target}.part`, { force: true }); } catch { /* non-fatal */ }
+    throw new Error(`${file.name} 完整性校验失败。`);
+  }
+  fs.renameSync(`${target}.part`, target);
+  if (process.platform !== 'win32') fs.chmodSync(target, 0o755);
+}
+
+async function installMediaComponent() {
+  if (mediaDownload) return mediaStatus();
+  const component = MEDIA_COMPONENTS[mediaPlatformKey()];
+  if (!component) throw new Error('当前平台暂不提供一键媒体组件。');
+  const dir = mediaComponentDir();
+  mediaDownload = { received: 0, total: 0 };
+  broadcastMedia();
+  try {
+    const manifest = await fetchMediaManifest(component.manifestUrl);
+    mediaDownload.total = manifest.files.reduce((sum, file) => sum + file.bytes, 0);
+    fs.mkdirSync(dir, { recursive: true });
+    for (const file of manifest.files) await downloadMediaFile(file, path.join(dir, file.name));
+    fs.writeFileSync(mediaManifestFile(), JSON.stringify({ version: manifest.version, installedAt: new Date().toISOString() }, null, 2));
+    mediaDownload = null;
+    broadcastMedia({ info: '媒体组件已安装并校验通过。' });
+    return mediaStatus();
+  } catch (error) {
+    mediaDownload = null;
+    const message = lib.classifyDownloadFailure(error);
+    broadcastMedia({ error: message });
+    throw new Error(message);
+  }
 }
 
 // ---------- 工具函数 ----------
@@ -577,7 +710,7 @@ ipcMain.handle('start-separation', async (event, options) => {
   // 前置检测：视频输入需要用户在系统中安装 FFmpeg。
   const hasVideo = inputs.some((file) => lib.isVideoPath(file));
   if (hasVideo && !ffmpegReady()) {
-    throw new Error('处理视频文件需要 FFmpeg。请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg），或先将视频转为音频文件。');
+    throw new Error('处理视频需要媒体组件。请在“设置”中点击“安装并继续”；安装后重试即可。');
   }
 
   // 前置检测：导出位置剩余磁盘空间
@@ -675,6 +808,10 @@ ipcMain.handle('model-download-cancel', (event, name) => { requireTrustedSender(
 
 ipcMain.handle('model-import', (event, name) => { requireTrustedSender(event); return importModel(name, null); });
 
+ipcMain.handle('media-status', (event) => { requireTrustedSender(event); return mediaStatus(); });
+
+ipcMain.handle('media-install', (event) => { requireTrustedSender(event); return installMediaComponent(); });
+
 ipcMain.handle('app-version', () => app.getVersion());
 
 ipcMain.handle('check-for-update', () => new Promise((resolve) => {
@@ -748,7 +885,7 @@ ipcMain.handle('export-mix', async (event, payload) => {
   const args = lib.buildMixArgs(stems, gains || {}, filePath);
   if (!args) return { error: '所有音轨都是静音，没有可导出的声音。' };
   if (!ffmpegReady()) {
-    return { error: '导出混音需要 FFmpeg。请先安装（macOS：brew install ffmpeg；Windows：winget install ffmpeg），然后重试。' };
+    return { error: '导出混音需要媒体组件。请在“设置”中点击“安装并继续”，完成后重试。' };
   }
 
   const dir = resolveFfmpegDir();
