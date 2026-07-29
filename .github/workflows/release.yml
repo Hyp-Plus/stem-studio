@@ -89,7 +89,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
-            mingw-w64-x86_64-gcc make nasm pkgconf curl tar xz python
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils make nasm pkgconf curl tar xz python
       - name: 构建 LGPL-only 媒体组件
         shell: msys2 {0}
         run: bash scripts/build-media-win.sh "$GITHUB_REF_NAME"

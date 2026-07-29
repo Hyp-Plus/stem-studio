@@ -19,11 +19,11 @@ const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', 
 const MEDIA_COMPONENTS = {
   'darwin-arm64': {
     label: 'macOS Apple Silicon 媒体组件',
-    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.0/stem-studio-media-macos-arm64.json'
+    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.1/stem-studio-media-macos-arm64.json'
   },
   'win32-x64': {
     label: 'Windows x64 媒体组件',
-    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.0/stem-studio-media-windows-x64.json'
+    manifestUrl: 'https://github.com/Hyp-Plus/stem-studio/releases/download/v0.17.1/stem-studio-media-windows-x64.json'
   }
 };
 
