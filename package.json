@@ -1,6 +1,6 @@
 {
   "name": "stem-studio",
-  "version": "0.17.4",
+  "version": "0.17.5",
   "description": "Offline music and voice stem separation for macOS and Windows",
   "author": "Hyp-Plus",
   "main": "src/main.js",
