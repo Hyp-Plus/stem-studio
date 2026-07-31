@@ -36,53 +36,54 @@
         </section>
       </div>
       <div id="page-main" class="page">
-      <section class="hero"><div><p class="eyebrow">STEM STUDIO / LOCAL AUDIO</p><h2>听见音乐里的<br />每一条线。</h2><p>本地拆分人声与乐器。文件不会离开这台电脑。</p></div><div class="hero-note"><span>离线工作</span><span id="first-run-hint">首次需下载标准模型 · 80 MB</span></div></section>
-      <section class="panel workflow-panel">
-        <div class="panel-intro"><span>01</span><div><h3>新建分离任务</h3><p>添加文件后，按推荐设置直接开始。</p></div></div>
-        <label class="label">源文件</label>
-        <div id="file-list" class="file-list"><p class="file-list-empty">拖入音频文件，或点击下方选择。</p></div>
-        <div class="file-actions"><button id="input-button" class="primary">选择文件</button><button id="quick-start-button">用推荐设置分离</button><button id="clear-files-button" hidden>清空列表</button></div>
-        <div class="divider"></div>
-        <label class="label"><span>02</span> 分离模式 <small>默认推荐标准四轨</small></label>
-        <div class="modes">
-          <label><input type="radio" name="mode" value="six-stems" /><b>高质量六轨</b><small>人声、钢琴、吉他、贝斯、鼓、其他</small></label>
-          <label><input type="radio" name="mode" value="four-stems" checked /><b>标准四轨（推荐）</b><small>人声、鼓、贝斯、其他</small></label>
-        </div>
-        <details class="advanced-options">
-          <summary>高级选项 <span>音轨、格式、性能与导出位置</span></summary>
-          <div class="label-row"><label class="label">导出音轨（默认全部）</label><button id="stems-toggle" class="link-button">全选 / 清空</button></div>
-          <div id="stems" class="stems"></div>
-          <div class="options-row">
-            <div>
-              <label class="label" for="format-select">导出格式</label>
-              <select id="format-select">
-                <option value="wav">WAV（无损）</option>
-                <option value="flac">FLAC（无损压缩）</option>
-                <option value="mp3">MP3 320kbps</option>
-              </select>
-            </div>
-            <div>
-              <label class="label" for="performance-select">性能档位</label>
-              <select id="performance-select">
-                <option value="fast">快速（1 遍）</option>
-                <option value="balanced">均衡（2 遍）</option>
-                <option value="best">极致（10 遍，最慢）</option>
-              </select>
-            </div>
+      <div class="edit-shell">
+        <aside class="media-library">
+          <div class="pane-title"><span>媒体库</span><button id="input-button" class="icon-button" title="导入文件">＋</button></div>
+          <div id="file-list" class="file-list"><p class="file-list-empty">拖入音频或视频<br />开始一个项目</p></div>
+          <div class="library-actions"><button id="input-button-copy">导入媒体</button><button id="clear-files-button" hidden>清空</button></div>
+          <details class="library-fold">
+            <summary>任务历史</summary>
+            <div id="history-list" class="history"><p class="file-list-empty">暂无历史记录。</p></div>
+            <button id="clear-history-button">清空历史</button>
+          </details>
+        </aside>
+        <section class="canvas-pane">
+          <div class="canvas-toolbar"><span>项目 / 未命名</span><span class="canvas-status">本地处理</span></div>
+          <div class="canvas-empty"><p class="eyebrow">STEM STUDIO</p><h2>从一段声音开始。</h2><p>导入媒体后，在右侧选择分离方式。</p><button id="quick-start-button" class="text-action">使用推荐设置导入 →</button></div>
+          <div class="timeline-ruler" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div id="progress-area" class="canvas-progress" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
+          <div class="canvas-footer"><span id="first-run-hint">首次使用会下载标准四轨模型（约 80 MB）。</span><button id="bench-button" hidden>试听并混音</button><button id="open-button" hidden>打开导出文件夹</button></div>
+        </section>
+        <aside class="inspector-pane">
+          <div class="pane-title">检查器</div>
+          <label class="label">分离模式</label>
+          <div class="modes inspector-modes">
+            <label><input type="radio" name="mode" value="four-stems" checked /><b>标准四轨</b><small>人声、鼓、贝斯、其他</small></label>
+            <label><input type="radio" name="mode" value="six-stems" /><b>高质量六轨</b><small>增加钢琴与吉他</small></label>
           </div>
-          <label class="label">导出位置</label>
-          <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
-        </details>
-        <div id="progress-area" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
-        <div class="actions"><button id="start-button" class="primary">开始分离 <span>↗</span></button><button id="cancel-button" hidden>取消全部</button><button id="bench-button" hidden>试听并混音</button><button id="open-button" hidden>打开导出文件夹</button></div><p class="action-hint">按 Enter 开始。格式、性能和导出位置可在高级选项中调整。</p>
-      </section>
+          <details class="advanced-options">
+            <summary>导出与性能</summary>
+            <div class="label-row"><label class="label">导出音轨</label><button id="stems-toggle" class="link-button">全选 / 清空</button></div>
+            <div id="stems" class="stems"></div>
+            <div class="options-row">
+              <div>
+                <label class="label" for="format-select">格式</label>
+                <select id="format-select"><option value="wav">WAV（无损）</option><option value="flac">FLAC（无损压缩）</option><option value="mp3">MP3 320kbps</option></select>
+              </div>
+              <div>
+                <label class="label" for="performance-select">性能</label>
+                <select id="performance-select"><option value="fast">快速</option><option value="balanced">均衡</option><option value="best">极致</option></select>
+              </div>
+            </div>
+            <label class="label">导出位置</label>
+            <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
+          </details>
+          <div class="inspector-actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消全部</button></div>
+          <p class="action-hint">选择文件后即可开始。</p>
+        </aside>
+      </div>
       <details class="settings">
-        <summary>任务历史</summary>
-        <div id="history-list" class="history"><p class="file-list-empty">暂无历史记录。</p></div>
-        <div class="setting-row"><span class="setting-value"></span><button id="clear-history-button">清空历史</button></div>
-      </details>
-      <details class="settings">
-        <summary>设置</summary>
+        <summary>应用设置</summary>
         <label class="label">Demucs 引擎路径</label>
         <div class="setting-row">
           <span id="engine-path" class="setting-value">自动检测</span>

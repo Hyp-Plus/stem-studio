@@ -3,7 +3,7 @@
 ## Source of truth
 - Status: Active
 - Last refreshed: 2026-07-31
-- Primary product surfaces: Stem Studio 桌面端首页、任务历史、分离工作台、设置与许可。
+- Primary product surfaces: Stem Studio 剪辑台式三栏工作区、分离结果工作台、设置与许可。
 - Evidence reviewed: `src/index.html`, `src/styles.css`, `src/renderer.js`, `assets/screenshot.png`, `README.md`；用户反馈当前深色简约方案不符合预期。
 
 ## Brand
@@ -22,12 +22,13 @@
 - Key contexts of use: macOS/Windows 桌面窗口、深色环境、文件拖入与键盘操作。
 
 ## Information architecture
-- Primary navigation: 首页分离流程 → 完成后的工作台；任务历史、设置、许可作为折叠的辅助区域。
-- Core routes/screens: 选择文件与分离、进度/任务队列、工作台混音、设置。
-- Content hierarchy: 文件选择优先；推荐四轨为默认；高级选项按需展开；状态和帮助紧邻相关操作。
+- Primary navigation: 左侧媒体库负责文件与历史；中央画布负责预览、进度与结果；右侧检查器负责分离参数和开始操作。
+- Core routes/screens: 剪辑台式媒体工作区、分离结果工作台、设置。
+- Content hierarchy: 左侧选择与管理文件；右侧设置参数；中央呈现当前任务与结果；主操作固定在检查器底部。
 
 ## Design principles
-- 一个主操作: 每个状态只突出最合适的下一步，其他操作降级为次级按钮或折叠内容。
+- 空间表达任务: 用固定三栏将“素材、画布、检查器”分开，让用户一眼理解操作对象和控制位置。
+- 一个主操作: 每个状态只突出最合适的下一步；开始分离固定在检查器底部，其他操作降级为次级按钮或折叠内容。
 - 默认即答案: 用“标准四轨、均衡、WAV、源文件同目录”作为清晰默认值。
 - 有材质感但不装饰: 以纸张般的浅底、细分隔线、录音室蓝色控制点与留白建立层级，不使用大面积阴影或霓虹色。
 - Tradeoffs: 保留现有功能和文本说明；不会为极简而隐藏错误、许可或高级控制。
@@ -35,14 +36,14 @@
 ## Visual language
 - Color: 温暖的浅灰纸张底色；墨黑文字；钴蓝作为唯一操作色；鼠尾草绿与砖红仅表示成功与错误。
 - Typography: 系统字体；大标题偏编辑排版，正文清晰紧凑；数字/状态采用等宽数字特征。
-- Spacing/layout rhythm: 8px 基础节奏，主内容宽度约 960px；首屏采用标题区与工作区的明确分区。
+- Spacing/layout rhythm: 8px 基础节奏；桌面端为 220px / 弹性画布 / 260px 三栏，窄窗口回退为纵向内容区。
 - Shape/radius/elevation: 6–12px 圆角；卡片如控制台面板，使用细线和轻微阴影，避免悬浮胶囊泛滥。
 - Motion: 仅短促的 hover/focus 反馈；尊重系统减少动态设置。
 - Imagery/iconography: 复用现有应用图标；以编号、控制点和文本建立录音室秩序，不新增装饰插图。
 
 ## Components
 - Existing components to reuse: 文件列表、模式 radio、折叠高级选项、任务行、进度条、设置 disclosure、工作台音轨行。
-- New/changed components: 编号化的分离任务面板、纸张式文件投放区、录音室控制条、紧凑的模式选择组、低噪声设置折叠区。
+- New/changed components: 媒体库、中央预览画布、检查器、固定操作区、分离结果工作台。
 - Variants and states: 主按钮为钴蓝；次按钮为纸面灰；禁用、运行、完成和错误状态保持明确的语义色。
 - Token/component ownership: 颜色、圆角、间距集中在 `src/styles.css` 的根变量和现有类中。
 

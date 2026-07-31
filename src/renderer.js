@@ -95,10 +95,12 @@ async function addFiles(paths) {
   setNotice(`列表中共 ${state.files.length} 个文件。`);
 }
 
-$('input-button').addEventListener('click', async () => {
+async function chooseInput() {
   const files = await window.stemStudio.pickInput();
   if (files && files.length) addFiles(files);
-});
+}
+$('input-button').addEventListener('click', chooseInput);
+$('input-button-copy').addEventListener('click', chooseInput);
 $('clear-files-button').addEventListener('click', () => { state.files = []; renderPendingFiles(); });
 
 // ---------- 拖拽导入 ----------
