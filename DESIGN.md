@@ -3,7 +3,7 @@
 ## Source of truth
 - Status: Active
 - Last refreshed: 2026-07-31
-- Primary product surfaces: Stem Studio 剪辑台式三栏工作区、分离结果工作台、设置与许可。
+- Primary product surfaces: Stem Studio 剪辑台式三栏工作区（中央内嵌分离工作台）、设置与许可。
 - Evidence reviewed: `src/index.html`, `src/styles.css`, `src/renderer.js`, `assets/screenshot.png`, `README.md`；用户反馈当前深色简约方案不符合预期。
 
 ## Brand
@@ -23,11 +23,12 @@
 
 ## Information architecture
 - Primary navigation: 左侧媒体库负责文件与历史；中央画布负责预览、进度与结果；右侧检查器负责分离参数和开始操作。
-- Core routes/screens: 剪辑台式媒体工作区、分离结果工作台、设置。
-- Content hierarchy: 左侧选择与管理文件；右侧设置参数；中央呈现当前任务与结果；主操作固定在检查器底部。
+- Core routes/screens: 剪辑台式媒体工作区、设置；分离结果工作台不是独立页面，而是中央画布的常驻内容。
+- Content hierarchy: 左侧选择与管理文件；右侧设置参数；中央始终呈现工作台（空轨道、处理进度或真实结果）；主操作固定在检查器底部。
 
 ## Design principles
 - 空间表达任务: 用固定三栏将“素材、画布、检查器”分开，让用户一眼理解操作对象和控制位置。
+- 工作台即画布: 中央不使用欢迎页或二级页面；首次打开便展示待命轨道，分离完成后在同一位置加载真实可编辑音轨。
 - 一个主操作: 每个状态只突出最合适的下一步；开始分离固定在检查器底部，其他操作降级为次级按钮或折叠内容。
 - 默认即答案: 用“标准四轨、均衡、WAV、源文件同目录”作为清晰默认值。
 - 有材质感但不装饰: 以纸张般的浅底、细分隔线、录音室蓝色控制点与留白建立层级，不使用大面积阴影或霓虹色。

@@ -571,16 +571,17 @@ function wbPreset(kind) {
   wbApplyGains();
 }
 
-// 页面切换：主页面与工作台是平级页面，工作台会话在返回主页后保留
-function showPage(name) {
-  $('page-main').hidden = name !== 'main';
-  $('page-workbench').hidden = name !== 'workbench';
-  window.scrollTo({ top: 0 });
+function setWorkbenchReady(ready) {
+  $('wb-empty-state').hidden = ready;
+  $('wb-preset-all').disabled = !ready;
+  $('wb-preset-karaoke').disabled = !ready;
+  $('wb-preset-vocals').disabled = !ready;
+  $('wb-export').disabled = !ready;
 }
 
 async function openWorkbench(dir, title) {
-  // 同一目录的会话还在：直接切页，不重新加载
-  if (wb.dir === dir && wb.tracks.length) return showPage('workbench');
+  // 同一目录的会话还在：中央画布已经是工作台，无需切换页面。
+  if (wb.dir === dir && wb.tracks.length) return;
   const stems = await window.stemStudio.listStems(dir);
   if (!stems.length) return setNotice('该目录里没有找到可加载的音轨文件。', true);
   // 换了目录：释放上一个会话
@@ -588,9 +589,9 @@ async function openWorkbench(dir, title) {
   wb.tracks.forEach((track) => track.gainNode && track.gainNode.disconnect());
   wb.tracks = [];
   wb.dir = dir; wb.title = title || dir.split(/[\\/]/).at(-1);
-  showPage('workbench');
   $('wb-title').textContent = `分离工作台 · ${wb.title}`;
   $('wb-subtitle').textContent = dir;
+  setWorkbenchReady(false);
   $('wb-loading').hidden = false;
   $('wb-tracks').innerHTML = '';
   $('wb-play').disabled = true;
@@ -612,18 +613,13 @@ async function openWorkbench(dir, title) {
     $('wb-loading').hidden = true;
     $('wb-play').disabled = false;
     wbRenderTracks();
+    setWorkbenchReady(true);
     wbTick();
   } catch (error) {
     $('wb-loading').textContent = `音轨加载失败：${error.message}`;
   }
 }
 
-function backToMain() {
-  wbPause(); // 会话保留，切回来还在；仅暂停播放
-  showPage('main');
-}
-
-$('wb-close').addEventListener('click', backToMain);
 $('wb-play').addEventListener('click', () => (wb.playing ? wbPause() : wbPlay()));
 $('wb-seek').addEventListener('click', (event) => {
   const rect = $('wb-seek').getBoundingClientRect();
@@ -648,9 +644,10 @@ $('wb-export').addEventListener('click', async () => {
   wbSetNotice(`已导出：${result.outPath}`);
 });
 document.addEventListener('keydown', (event) => {
-  if ($('page-workbench').hidden) return;
-  if (event.key === ' ') { event.preventDefault(); (wb.playing ? wbPause() : wbPlay()); }
-  if (event.key === 'Escape') backToMain();
+  if (event.key === ' ' && wb.tracks.length && !['BUTTON', 'SELECT', 'INPUT', 'TEXTAREA'].includes((event.target && event.target.tagName) || '')) {
+    event.preventDefault();
+    (wb.playing ? wbPause() : wbPlay());
+  }
 });
 
 // ---------- 快捷键 ----------
