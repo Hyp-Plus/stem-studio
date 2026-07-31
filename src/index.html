@@ -39,6 +39,10 @@
             </div>
             <div id="wb-loading" class="wb-loading" hidden>正在加载音轨…</div>
             <div id="wb-tracks" class="wb-tracks"></div>
+            <div id="progress-area" class="workbench-progress" hidden>
+              <div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div>
+              <div class="track"><i id="progress-bar"></i></div>
+            </div>
             <div class="wb-transport">
               <button id="wb-play" class="primary wb-play" disabled>播放</button>
               <span id="wb-time" class="wb-time">0:00 / 0:00</span>
@@ -54,7 +58,6 @@
             </div>
             <p id="wb-notice" class="notice"></p>
           </section>
-          <div id="progress-area" class="canvas-progress" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
           <div class="canvas-footer"><span id="first-run-hint">首次使用会下载标准四轨模型（约 80 MB）。</span><button id="bench-button" hidden>试听并混音</button><button id="open-button" hidden>打开导出文件夹</button></div>
         </section>
         <aside class="inspector-pane">
@@ -81,8 +84,10 @@
             <label class="label">导出位置</label>
             <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
           </details>
-          <div class="inspector-actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消全部</button></div>
-          <p class="action-hint">选择文件后即可开始。</p>
+          <div class="inspector-bottom">
+            <div class="inspector-actions"><button id="start-button" class="primary" disabled>开始分离</button><button id="cancel-button" hidden>取消全部</button></div>
+            <p id="action-hint" class="action-hint">添加文件后即可开始。</p>
+          </div>
         </aside>
       </div>
       <details class="settings">

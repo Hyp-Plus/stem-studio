@@ -16,11 +16,21 @@ function currentModel() { return mode() === 'six-stems' ? 'htdemucs_6s' : 'htdem
 function setNotice(message, isError = false) { $('notice').textContent = message; $('notice').classList.toggle('error', isError); }
 function escapeHtml(text) { return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+function syncStartAction() {
+  const canStart = state.files.length > 0 && !state.running;
+  $('start-button').disabled = !canStart;
+  $('action-hint').textContent = state.running
+    ? '正在处理当前任务。'
+    : canStart ? `已添加 ${state.files.length} 个文件，可以开始分离。` : '添加文件后即可开始。';
+}
+
 function setRunning(running) {
   state.running = running;
-  $('start-button').disabled = running;
   $('cancel-button').hidden = !running;
   $('output-button').disabled = running;
+  $('workbench-badge').textContent = running ? '处理中' : '待命';
+  $('workbench-badge').classList.toggle('running', running);
+  syncStartAction();
 }
 
 function updateFirstRunHint() {
@@ -36,6 +46,7 @@ function renderPendingFiles() {
   $('clear-files-button').hidden = state.files.length === 0;
   if (!state.files.length) {
     list.innerHTML = '<p class="file-list-empty">还没有文件，点击下方“添加文件”或直接拖入。</p>';
+    syncStartAction();
     return;
   }
   list.innerHTML = state.files.map((file, index) => {
@@ -46,6 +57,7 @@ function renderPendingFiles() {
     state.files.splice(Number(button.dataset.index), 1);
     renderPendingFiles();
   }));
+  syncStartAction();
 }
 
 function renderQueue() {
@@ -71,6 +83,7 @@ function renderQueue() {
   list.querySelectorAll('.row-retry').forEach((button) => button.addEventListener('click', async () => {
     try { await window.stemStudio.retryJob(button.dataset.id); } catch (error) { setNotice(error.message, true); }
   }));
+  syncStartAction();
 }
 
 async function addFiles(paths) {
