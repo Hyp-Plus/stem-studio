@@ -36,13 +36,14 @@
         </section>
       </div>
       <div id="page-main" class="page">
-      <section class="hero"><p class="eyebrow">DEM U C S · 本地处理</p><h2>把声音拆开，听见每一层。</h2><p>文件只在这台电脑上处理，不会上传。</p><p id="first-run-hint" class="first-run-hint">首次使用会下载标准四轨模型（约 80 MB）。</p></section>
-      <section class="panel">
+      <section class="hero"><div><p class="eyebrow">STEM STUDIO / LOCAL AUDIO</p><h2>听见音乐里的<br />每一条线。</h2><p>本地拆分人声与乐器。文件不会离开这台电脑。</p></div><div class="hero-note"><span>离线工作</span><span id="first-run-hint">首次需下载标准模型 · 80 MB</span></div></section>
+      <section class="panel workflow-panel">
+        <div class="panel-intro"><span>01</span><div><h3>新建分离任务</h3><p>添加文件后，按推荐设置直接开始。</p></div></div>
         <label class="label">源文件</label>
         <div id="file-list" class="file-list"><p class="file-list-empty">拖入音频文件，或点击下方选择。</p></div>
         <div class="file-actions"><button id="input-button" class="primary">选择文件</button><button id="quick-start-button">用推荐设置分离</button><button id="clear-files-button" hidden>清空列表</button></div>
         <div class="divider"></div>
-        <label class="label">分离模式 <span class="label-note">默认推荐标准四轨</span></label>
+        <label class="label"><span>02</span> 分离模式 <small>默认推荐标准四轨</small></label>
         <div class="modes">
           <label><input type="radio" name="mode" value="six-stems" /><b>高质量六轨</b><small>人声、钢琴、吉他、贝斯、鼓、其他</small></label>
           <label><input type="radio" name="mode" value="four-stems" checked /><b>标准四轨（推荐）</b><small>人声、鼓、贝斯、其他</small></label>
@@ -73,7 +74,7 @@
           <button id="output-button" class="file-picker"><span id="output-name">与源文件同目录</span><span>选择</span></button>
         </details>
         <div id="progress-area" hidden><div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div><div class="track"><i id="progress-bar"></i></div></div>
-        <div class="actions"><button id="start-button" class="primary">开始分离</button><button id="cancel-button" hidden>取消全部</button><button id="bench-button" hidden>试听并混音</button><button id="open-button" hidden>打开导出文件夹</button></div><p class="action-hint">可按 Enter 开始；格式、性能和导出位置在高级选项中调整。</p>
+        <div class="actions"><button id="start-button" class="primary">开始分离 <span>↗</span></button><button id="cancel-button" hidden>取消全部</button><button id="bench-button" hidden>试听并混音</button><button id="open-button" hidden>打开导出文件夹</button></div><p class="action-hint">按 Enter 开始。格式、性能和导出位置可在高级选项中调整。</p>
       </section>
       <details class="settings">
         <summary>任务历史</summary>

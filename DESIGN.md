@@ -2,14 +2,14 @@
 
 ## Source of truth
 - Status: Active
-- Last refreshed: 2026-07-30
+- Last refreshed: 2026-07-31
 - Primary product surfaces: Stem Studio 桌面端首页、任务历史、分离工作台、设置与许可。
-- Evidence reviewed: `src/index.html`, `src/styles.css`, `src/renderer.js`, `assets/screenshot.png`, `README.md`。
+- Evidence reviewed: `src/index.html`, `src/styles.css`, `src/renderer.js`, `assets/screenshot.png`, `README.md`；用户反馈当前深色简约方案不符合预期。
 
 ## Brand
-- Personality: 安静、可靠、技术感克制；帮助非技术用户完成本地音频分离。
+- Personality: 有人味的录音室工具，可靠而不冷漠；帮助非技术用户完成本地音频分离。
 - Trust signals: 本地处理、清晰的引擎状态、明确的下载/组件说明、可恢复的任务状态。
-- Avoid: 霓虹赛博装饰、重复的口号与主按钮、将高级设置暴露在首次路径中。
+- Avoid: 霓虹赛博、通用 AI 仪表盘感、过量深色卡片、重复的口号与主按钮、将高级设置暴露在首次路径中。
 
 ## Product goals
 - Goals: 让首次用户在一个屏幕内完成“选文件 → 采用推荐设置 → 开始分离”；让专业用户仍能发现模式、格式、性能和导出位置。
@@ -29,21 +29,21 @@
 ## Design principles
 - 一个主操作: 每个状态只突出最合适的下一步，其他操作降级为次级按钮或折叠内容。
 - 默认即答案: 用“标准四轨、均衡、WAV、源文件同目录”作为清晰默认值。
-- 克制而可读: 以留白、字号和轻量分组建立层级，而非大量卡片、阴影或高饱和色。
+- 有材质感但不装饰: 以纸张般的浅底、细分隔线、录音室蓝色控制点与留白建立层级，不使用大面积阴影或霓虹色。
 - Tradeoffs: 保留现有功能和文本说明；不会为极简而隐藏错误、许可或高级控制。
 
 ## Visual language
-- Color: 深中性色作为底色；低饱和灰用于边界和辅助文字；黄绿色仅用于主操作、焦点和成功状态。
-- Typography: 系统字体；标题紧凑但不过度放大；正文与辅助说明保持清晰对比。
-- Spacing/layout rhythm: 8px 基础节奏，主内容宽度约 860px；首页以 24–40px 分区留白。
-- Shape/radius/elevation: 12–16px 圆角；仅主面板使用轻微层次，避免嵌套卡片。
+- Color: 温暖的浅灰纸张底色；墨黑文字；钴蓝作为唯一操作色；鼠尾草绿与砖红仅表示成功与错误。
+- Typography: 系统字体；大标题偏编辑排版，正文清晰紧凑；数字/状态采用等宽数字特征。
+- Spacing/layout rhythm: 8px 基础节奏，主内容宽度约 960px；首屏采用标题区与工作区的明确分区。
+- Shape/radius/elevation: 6–12px 圆角；卡片如控制台面板，使用细线和轻微阴影，避免悬浮胶囊泛滥。
 - Motion: 仅短促的 hover/focus 反馈；尊重系统减少动态设置。
-- Imagery/iconography: 复用现有应用图标；不新增装饰插图。
+- Imagery/iconography: 复用现有应用图标；以编号、控制点和文本建立录音室秩序，不新增装饰插图。
 
 ## Components
 - Existing components to reuse: 文件列表、模式 radio、折叠高级选项、任务行、进度条、设置 disclosure、工作台音轨行。
-- New/changed components: 更明确的文件投放空状态、紧凑的模式选择组、主/次操作层级、低噪声设置折叠区。
-- Variants and states: 主按钮为黄绿色；次按钮为深灰；禁用、运行、完成和错误状态保持现有语义色。
+- New/changed components: 编号化的分离任务面板、纸张式文件投放区、录音室控制条、紧凑的模式选择组、低噪声设置折叠区。
+- Variants and states: 主按钮为钴蓝；次按钮为纸面灰；禁用、运行、完成和错误状态保持明确的语义色。
 - Token/component ownership: 颜色、圆角、间距集中在 `src/styles.css` 的根变量和现有类中。
 
 ## Accessibility
@@ -73,7 +73,7 @@
 
 ## Implementation constraints
 - Framework/styling system: 原生 HTML/CSS/JS Electron；不新增前端依赖。
-- Design-token constraints: 扩展现有 CSS 变量，保留黄绿色品牌强调色。
+- Design-token constraints: 扩展现有 CSS 变量；新界面以钴蓝为操作强调色，不再使用黄绿色作为常规主操作色。
 - Performance constraints: 不增加外部字体、图片或运行时网络请求。
 - Compatibility constraints: 保持 macOS/Windows 和当前 CSP；不改动 renderer 依赖的元素 ID/语义。
 - Test/screenshot expectations: `npm run lint && npm test`；打包后进行桌面界面冒烟检查。
