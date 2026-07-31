@@ -2,12 +2,12 @@
   <img src="assets/icon-512.png" width="128" alt="Stem Studio 图标" />
 </p>
 
-<h1 align="center">Stem Studio：开源音频分离器</h1>
+<h1 align="center">Stem Studio：本地音频分离工作台</h1>
 
-<p align="center">本地离线分离人声、鼓、贝斯、钢琴、吉他等音轨。<br/>Demucs 驱动，macOS / Windows 可用；文件仅在本机处理，不上传网络。</p>
+<p align="center">本地离线分离人声、鼓、贝斯、钢琴、吉他等音轨，并在中央工作台试听、混音与导出。<br/>Demucs 驱动，macOS / Windows 可用；文件仅在本机处理，不上传网络。</p>
 
 <p align="center">
-  <img src="assets/stem-studio-v0.14.jpg" width="720" alt="Stem Studio v0.14 主界面：快速分离与标准四轨推荐" />
+  <img src="assets/stem-studio-v0.2.1-workbench.jpg" width="900" alt="Stem Studio v0.2.1：左侧媒体库、中央常驻分离工作台与右侧检查器" />
 </p>
 
 ## 下载
@@ -32,7 +32,7 @@
 - **模型管理**：设置页可预下载模型、断点续传、离线导入，全部经 SHA256 完整校验
 - **任务历史**：最近 50 条记录持久化，失败原因留档，可从历史直接打开导出目录
 - 单项任务可取消或重试；同名文件输出冲突会在开始前拦截，避免覆盖结果
-- 分离完成后可直接进入工作台试听、静音/solo 各轨并导出混音；设置中可检查新版本
+- **常驻分离工作台**：中央画布从首屏就展示待命轨道；分离完成后原位加载真实音轨，可试听、静音/solo 各轨并导出混音
 - 导出格式 WAV / FLAC / MP3 320kbps；性能档位 快速（1 遍）/ 均衡（2 遍）/ 极致（10 遍）
 - 进度显示已用时与预计剩余；多文件显示总进度；完成后系统通知（窗口不在前台时）
 - macOS 自动使用 MPS（Apple Silicon GPU）加速，失败自动回退 CPU 重试
