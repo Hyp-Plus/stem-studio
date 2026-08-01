@@ -46,7 +46,7 @@
 
 ## Components
 - Existing components to reuse: 文件列表、模式 radio、折叠高级选项、任务行、进度条、设置 disclosure、工作台音轨行。
-- New/changed components: 媒体库、中央预览画布、检查器、固定操作区、分离结果工作台。
+- New/changed components: 媒体库、中央预览画布、检查器、固定操作区、分离结果工作台；进度阶段说明、失败恢复入口与工作台内的媒体组件安装入口。
 - Variants and states: 主按钮为钴蓝；次按钮为纸面灰；禁用、运行、完成和错误状态保持明确的语义色。
 - Token/component ownership: 颜色、圆角、间距集中在 `src/styles.css` 的根变量和现有类中。
 
@@ -63,10 +63,10 @@
 - Touch/hover differences: 触控环境不依赖 hover 才能发现操作。
 
 ## Interaction states
-- Loading: 引擎检测、模型下载和工作台加载用简短状态文本与现有进度条。
+- Loading: 引擎检测、模型下载和工作台加载用简短状态文本与现有进度条；分离过程同时说明当前阶段与原始任务信息。
 - Empty: 文件区本身是投放区，明确“拖入或选择文件”。
-- Error: 沿用现有中文错误文案和红色状态。
-- Success: 单文件分离成功后自动在中央画布加载结果工作台；批量任务沿用完成 chip、打开文件夹和进入工作台入口。
+- Error: 沿用现有中文错误文案和红色状态；任务失败提供重试与按错误类型定位至引擎、媒体组件或导出位置的恢复入口。
+- Success: 单文件分离成功后自动在中央画布加载结果工作台；批量任务沿用完成 chip、打开文件夹和进入工作台入口；混音导出成功明确显示成品路径。
 - Disabled: 主操作在无文件或运行中不可用，并保持语义状态。
 - Offline/slow network: 模型/媒体组件继续显示下载与可恢复错误信息。
 

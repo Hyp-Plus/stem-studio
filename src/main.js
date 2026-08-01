@@ -872,6 +872,7 @@ ipcMain.handle('export-mix', async (event, payload) => {
   if (!stems.every((stem) => stem && STEM_ORDER.includes(stem.id) && authorizedStemFiles.has(path.resolve(stem.path || '')))) {
     return { error: '音轨来源无效，请从已完成的分离结果重新打开工作台。' };
   }
+  if (!ffmpegReady()) return { needsMedia: true, error: '导出混音需要媒体组件。' };
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: '导出混音',
     defaultPath: path.join(path.dirname(stems[0].path), defaultName || '混音.wav'),
@@ -884,10 +885,6 @@ ipcMain.handle('export-mix', async (event, payload) => {
   if (canceled || !filePath) return { cancelled: true };
   const args = lib.buildMixArgs(stems, gains || {}, filePath);
   if (!args) return { error: '所有音轨都是静音，没有可导出的声音。' };
-  if (!ffmpegReady()) {
-    return { error: '导出混音需要媒体组件。请在“设置”中点击“安装并继续”，完成后重试。' };
-  }
-
   const dir = resolveFfmpegDir();
   const binary = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
   const ffmpeg = dir ? path.join(dir, binary) : 'ffmpeg';

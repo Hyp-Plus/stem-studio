@@ -48,3 +48,8 @@ h1 { font-size:14px; letter-spacing:-.02em; } main > header p { margin-top:1px; 
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:.01ms!important; } }
 @media (max-width:780px) { main { padding:0 10px 16px; }.edit-shell { grid-template-columns:1fr; }.media-library,.inspector-pane { border:0; border-bottom:1px solid var(--line); }.canvas-pane { min-height:430px; order:-1; }.file-list:has(.file-list-empty) { min-height:120px; }.inspector-actions { margin-top:18px; }.wb-track { grid-template-columns:45px 1fr; }.wb-track-controls { grid-column:1/-1; } }
 @media (max-width:560px) { .onboarding { padding:10px; align-items:end; }.onboarding-card { padding:22px; }.onboarding-steps li { grid-template-columns:25px 1fr; }.onboarding-steps button { grid-column:2; justify-self:start; } }
+
+.row-recovery { padding:4px 6px; color:var(--blue-hi); font-size:10px; }
+.workbench-progress { padding:10px 10px 12px; }
+.progress-context { display:flex; flex-wrap:wrap; gap:5px 10px; align-items:baseline; color:#dce5ff; font-size:11px; }
+.progress-context span { color:#aeb9ce; font-size:10px; }

@@ -42,7 +42,7 @@
           <section class="workbench-panel" aria-label="分离工作台">
             <header class="workbench-head">
               <div><h2 id="wb-title">分离工作台</h2><p id="wb-subtitle" class="wb-subtitle">导入一段媒体，分离结果会直接出现在这里。</p></div>
-              <span class="workbench-badge">待命</span>
+              <span id="workbench-badge" class="workbench-badge">待命</span>
             </header>
             <div id="wb-empty-state" class="wb-empty-state">
               <div class="empty-track"><span>人声</span><i></i></div>
@@ -53,7 +53,8 @@
             </div>
             <div id="wb-loading" class="wb-loading" hidden>正在加载音轨…</div>
             <div id="wb-tracks" class="wb-tracks"></div>
-            <div id="progress-area" class="workbench-progress" hidden>
+            <div id="progress-area" class="workbench-progress" role="status" aria-live="polite" hidden>
+              <div class="progress-context"><b id="progress-stage">准备处理</b><span id="progress-detail">正在准备任务…</span></div>
               <div class="progress-label"><span id="progress-message">准备中</span><span id="progress-eta" class="eta"></span><span id="progress-value">0%</span></div>
               <div class="track"><i id="progress-bar"></i></div>
             </div>
@@ -68,9 +69,10 @@
                 <button id="wb-preset-karaoke" class="wb-preset" disabled>伴奏（去人声）</button>
                 <button id="wb-preset-vocals" class="wb-preset" disabled>纯人声</button>
               </span>
+              <button id="wb-install-media" hidden>安装媒体组件</button>
               <button id="wb-export" class="primary" disabled>导出混音</button>
             </div>
-            <p id="wb-notice" class="notice"></p>
+            <p id="wb-notice" class="notice" role="status" aria-live="polite"></p>
           </section>
           <div class="canvas-footer"><span id="first-run-hint">首次使用会下载标准四轨模型（约 80 MB）。</span><button id="bench-button" hidden>试听并混音</button><button id="open-button" hidden>打开导出文件夹</button></div>
         </section>
@@ -104,7 +106,7 @@
           </div>
         </aside>
       </div>
-      <details class="settings">
+      <details id="settings-panel" class="settings">
         <summary>应用设置</summary>
         <label class="label">Demucs 引擎路径</label>
         <div class="setting-row">

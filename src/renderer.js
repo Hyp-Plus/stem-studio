@@ -11,6 +11,7 @@ let onboardingSettings = null;
 const $ = (id) => document.getElementById(id);
 const MEDIA_EXTENSIONS = ['wav', 'mp3', 'flac', 'm4a', 'aac', 'ogg', 'mp4', 'mov', 'mkv', 'm4v'];
 const STATUS_LABELS = { pending: '等待中', running: '处理中', done: '完成', error: '失败', cancelled: '已取消' };
+let mediaInstallRequestedFromWorkbench = false;
 
 function mode() { return document.querySelector('input[name="mode"]:checked').value; }
 function currentModel() { return mode() === 'six-stems' ? 'htdemucs_6s' : 'htdemucs'; }
@@ -32,6 +33,36 @@ function setRunning(running) {
   $('workbench-badge').textContent = running ? '处理中' : '待命';
   $('workbench-badge').classList.toggle('running', running);
   syncStartAction();
+}
+
+function progressStage(message = '') {
+  if (/下载模型|模型文件/.test(message)) return '正在准备模型';
+  if (/加载模型/.test(message)) return '正在加载分离引擎';
+  if (/MPS.*CPU|改用 CPU/.test(message)) return '正在切换处理方式';
+  return '正在分离音轨';
+}
+
+function renderProgressContext(job) {
+  const message = job && job.message ? job.message : '正在准备任务…';
+  $('progress-stage').textContent = progressStage(message);
+  $('progress-detail').textContent = message;
+}
+
+function recoveryFor(message = '') {
+  if (/Demucs|引擎|可执行文件/.test(message)) return { action: 'engine', label: '检查引擎' };
+  if (/媒体组件|FFmpeg|视频/.test(message)) return { action: 'media', label: '安装媒体组件' };
+  if (/磁盘空间|磁盘/.test(message)) return { action: 'output', label: '更换导出位置' };
+  return { action: 'settings', label: '查看设置' };
+}
+
+function openRecovery(action) {
+  const settings = $('settings-panel');
+  settings.open = true;
+  const target = action === 'engine' ? $('engine-button')
+    : action === 'media' ? $('media-install-button')
+      : action === 'output' ? $('output-button') : settings;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (target !== settings) target.focus({ preventScroll: true });
 }
 
 function updateFirstRunHint() {
@@ -136,10 +167,13 @@ function renderQueue() {
       ? `<button class="row-cancel" data-id="${job.id}">取消</button>`
       : ['error', 'cancelled'].includes(job.status)
         ? `<button class="row-retry" data-id="${job.id}">重试</button>` : '';
+    const recovery = job.status === 'error' && job.message
+      ? (() => { const item = recoveryFor(job.message); return `<button class="row-recovery" data-action="${item.action}">${item.label}</button>`; })()
+      : '';
     // 失败时把中文错误原因展示在行内，否则用户只能看到"失败"二字
     const detail = job.status === 'error' && job.message
       ? `<span class="row-detail" title="${escapeHtml(job.message)}">${escapeHtml(job.message)}</span>` : '';
-    return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${controls}${open}${detail}</div>`;
+    return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${controls}${recovery}${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
   list.querySelectorAll('.row-bench').forEach((button) => button.addEventListener('click', () => openWorkbench(button.dataset.dir, button.dataset.name)));
@@ -147,6 +181,7 @@ function renderQueue() {
   list.querySelectorAll('.row-retry').forEach((button) => button.addEventListener('click', async () => {
     try { await window.stemStudio.retryJob(button.dataset.id); } catch (error) { setNotice(error.message, true); }
   }));
+  list.querySelectorAll('.row-recovery').forEach((button) => button.addEventListener('click', () => openRecovery(button.dataset.action)));
   syncStartAction();
 }
 
@@ -298,9 +333,12 @@ window.stemStudio.onQueueUpdate((snapshot) => {
   renderQueue();
   const runningJob = snapshot.jobs.find((job) => job.status === 'running');
   if (runningJob) {
+    if (!state.running) setRunning(true);
+    $('progress-area').hidden = false;
     if (progress.jobId !== runningJob.id) { progress.jobId = runningJob.id; progress.startedAt = Date.now(); $('progress-eta').textContent = ''; }
     const position = snapshot.jobs.filter((job) => ['done', 'error', 'cancelled'].includes(job.status)).length + 1;
     $('progress-message').textContent = `（${position}/${snapshot.jobs.length}）${runningJob.name}`;
+    renderProgressContext(runningJob);
   }
   $('progress-bar').style.width = `${overallPercent()}%`;
 });
@@ -308,6 +346,7 @@ window.stemStudio.onQueueUpdate((snapshot) => {
 window.stemStudio.onUpdate((update) => {
   const job = state.jobs.find((item) => item.id === update.id);
   if (job) { job.percent = update.percent; job.message = update.message; }
+  renderProgressContext(job || update);
   const overall = overallPercent();
   $('progress-value').textContent = state.jobs.length > 1
     ? `当前 ${update.percent || 0}% · 总 ${overall}%`
@@ -408,6 +447,11 @@ function renderMedia(status) {
   if (status.ready) {
     $('media-status').textContent = `已就绪（v${status.version}）`;
     button.hidden = true;
+    if (mediaInstallRequestedFromWorkbench) {
+      mediaInstallRequestedFromWorkbench = false;
+      $('wb-install-media').hidden = true;
+      wbSetNotice('媒体组件已就绪，现在可以导出混音。');
+    }
     return;
   }
   button.hidden = false;
@@ -497,7 +541,7 @@ window.stemStudio.onModelProgress((status) => {
 // solo/静音/音量的实际增益由 lib.computeEffectiveGains 同款规则计算（此处内联同步实现）。
 const wb = {
   ctx: null, tracks: [], sources: [], duration: 0,
-  playing: false, startedAt: 0, offset: 0, raf: 0, dir: null, title: ''
+  playing: false, exporting: false, startedAt: 0, offset: 0, raf: 0, dir: null, title: ''
 };
 
 function wbEffectiveGains() {
@@ -659,7 +703,7 @@ function setWorkbenchReady(ready) {
   $('wb-preset-all').disabled = !ready;
   $('wb-preset-karaoke').disabled = !ready;
   $('wb-preset-vocals').disabled = !ready;
-  $('wb-export').disabled = !ready;
+  $('wb-export').disabled = !ready || wb.exporting;
 }
 
 async function openWorkbench(dir, title) {
@@ -712,19 +756,43 @@ $('wb-preset-all').addEventListener('click', () => wbPreset('all'));
 $('wb-preset-karaoke').addEventListener('click', () => wbPreset('karaoke'));
 $('wb-preset-vocals').addEventListener('click', () => wbPreset('vocals'));
 $('wb-export').addEventListener('click', async () => {
+  if (wb.exporting) return;
   const gains = wbEffectiveGains();
   const anyVocal = (gains.vocals || 0) > 0;
   const suffix = !anyVocal ? '伴奏' : Object.values(gains).filter((gain) => gain > 0).length === 1 ? '独奏' : '混音';
   const format = $('format-select').value === 'flac' ? 'flac' : $('format-select').value === 'mp3' ? 'mp3' : 'wav';
-  wbSetNotice('正在导出混音…');
-  const result = await window.stemStudio.exportMix({
-    stems: wb.tracks.map((track) => ({ id: track.id, path: track.path })),
-    gains,
-    defaultName: `${wb.title}-${suffix}.${format}`
-  });
-  if (result.cancelled) return wbSetNotice('');
-  if (result.error) return wbSetNotice(result.error, true);
-  wbSetNotice(`已导出：${result.outPath}`);
+  wb.exporting = true;
+  $('wb-export').disabled = true;
+  $('wb-export').textContent = '正在导出…';
+  wbSetNotice('正在导出混音，请保持应用打开。');
+  try {
+    const result = await window.stemStudio.exportMix({
+      stems: wb.tracks.map((track) => ({ id: track.id, path: track.path })),
+      gains,
+      defaultName: `${wb.title}-${suffix}.${format}`
+    });
+    if (result.cancelled) return wbSetNotice('');
+    if (result.needsMedia) {
+      $('wb-install-media').hidden = false;
+      return wbSetNotice('导出混音需要媒体组件。安装完成后即可继续导出。', true);
+    }
+    if (result.error) return wbSetNotice(result.error, true);
+    wbSetNotice(`已导出：${result.outPath}`);
+  } catch (error) {
+    wbSetNotice(`导出混音失败：${error.message}`, true);
+  } finally {
+    wb.exporting = false;
+    $('wb-export').disabled = !wb.tracks.length;
+    $('wb-export').textContent = '导出混音';
+  }
+});
+$('wb-install-media').addEventListener('click', async () => {
+  mediaInstallRequestedFromWorkbench = true;
+  $('wb-install-media').disabled = true;
+  wbSetNotice('正在下载并校验媒体组件…');
+  try { await window.stemStudio.mediaInstall(); }
+  catch (error) { mediaInstallRequestedFromWorkbench = false; wbSetNotice(`媒体组件安装失败：${error.message}`, true); }
+  finally { $('wb-install-media').disabled = false; }
 });
 document.addEventListener('keydown', (event) => {
   if (event.key === ' ' && wb.tracks.length && !['BUTTON', 'SELECT', 'INPUT', 'TEXTAREA'].includes((event.target && event.target.tagName) || '')) {
