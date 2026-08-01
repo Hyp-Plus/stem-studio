@@ -69,6 +69,17 @@ async function refreshOnboarding() {
         : (media.downloading ? `正在下载并校验：${media.percent || 0}%` : '需要视频输入或导出混音时再安装。');
     onboardingRow('media', media.ready ? 'ready' : (media.downloading ? 'running' : 'optional'), detail, media.ready || media.unsupported ? null : (media.downloading ? '安装中…' : '按需安装'), Boolean(media.downloading));
   }
+  const ready = Boolean(engine && engine.available && standard && standard.ready);
+  $('onboarding').classList.toggle('is-ready', ready);
+  $('onboarding-title').textContent = ready ? '已经准备好了' : '让 Stem Studio 准备好';
+  $('onboarding-intro').textContent = ready
+    ? '分离引擎与标准四轨模型均已就绪。导入一段媒体，即可开始本地分离。'
+    : '所有音频都在本机处理。这里仅说明首次需要的本地组件；下载由你主动开始。';
+  $('onboarding-notice').textContent = ready
+    ? '视频输入和混音导出可在需要时再安装媒体组件。'
+    : '准备好后即可导入第一段媒体。';
+  $('onboarding-skip-button').hidden = ready;
+  $('onboarding-finish-button').textContent = ready ? '导入第一段媒体' : '完成并导入媒体';
 }
 
 function closeOnboarding() {
@@ -320,6 +331,10 @@ window.stemStudio.onQueueFinished((summary) => {
     ? `全部完成：${summary.doneCount} 个文件的音轨已导出。`
     : `完成 ${summary.doneCount}/${summary.total} 个，${failed} 个未完成（详见列表）。`, failed !== 0);
   refreshHistory();
+  if (summary.total === 1 && summary.doneCount === 1 && summary.lastOutput) {
+    const finished = state.jobs.find((job) => job.status === 'done' && job.outputDir === summary.lastOutput);
+    openWorkbench(summary.lastOutput, finished ? finished.name : '分离结果');
+  }
 });
 
 // ---------- 任务历史 ----------
