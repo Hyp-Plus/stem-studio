@@ -9,6 +9,20 @@
   </head>
   <body>
     <div id="drop-overlay" hidden><p>松开以添加文件</p></div>
+    <section id="onboarding" class="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" hidden>
+      <div class="onboarding-card">
+        <p class="onboarding-kicker">首次准备</p>
+        <h2 id="onboarding-title">让 Stem Studio 准备好</h2>
+        <p class="onboarding-intro">所有音频都在本机处理。这里仅说明首次需要的本地组件；下载由你主动开始。</p>
+        <ol class="onboarding-steps">
+          <li id="onboarding-engine-row"><span class="onboarding-index">1</span><div><b>分离引擎</b><small id="onboarding-engine-text">正在检测…</small></div><button id="onboarding-engine-button" hidden>选择引擎</button></li>
+          <li id="onboarding-model-row"><span class="onboarding-index">2</span><div><b>标准四轨模型</b><small id="onboarding-model-text">约 80 MB；用于人声、鼓、贝斯与其他音轨。</small></div><button id="onboarding-model-button">下载模型</button></li>
+          <li id="onboarding-media-row"><span class="onboarding-index">3</span><div><b>视频与混音支持（可选）</b><small id="onboarding-media-text">需要视频输入或导出混音时再安装。</small></div><button id="onboarding-media-button">按需安装</button></li>
+        </ol>
+        <p id="onboarding-notice" class="onboarding-notice">准备好后即可导入第一段媒体。</p>
+        <div class="onboarding-actions"><button id="onboarding-skip-button">稍后设置</button><button id="onboarding-finish-button" class="primary">完成并导入媒体</button></div>
+      </div>
+    </section>
     <main>
       <header><span class="mark"><img src="../assets/icon-512.png" alt="Stem Studio" /></span><div><h1>Stem Studio</h1><p>离线音频分离</p></div><span id="engine" class="engine">正在检测引擎…</span></header>
       <div id="page-main" class="page">

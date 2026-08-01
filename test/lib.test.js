@@ -98,8 +98,8 @@ test('isVideoPath：按扩展名判断视频', () => {
 });
 
 test('sanitizeSettings：过滤白名单外的键', () => {
-  const clean = lib.sanitizeSettings({ format: 'flac', evil: 'x', enginePath: '/usr/bin/demucs' });
-  assert.deepEqual(clean, { format: 'flac', enginePath: '/usr/bin/demucs' });
+  const clean = lib.sanitizeSettings({ format: 'flac', onboardingComplete: true, evil: 'x', enginePath: '/usr/bin/demucs' });
+  assert.deepEqual(clean, { format: 'flac', onboardingComplete: true, enginePath: '/usr/bin/demucs' });
   assert.deepEqual(lib.sanitizeSettings(null), {});
 });
 

@@ -15,7 +15,7 @@ const PERFORMANCE_PROFILES = {
 const VIDEO_EXTENSION_LIST = ['.mp4', '.mov', '.mkv', '.m4v'];
 const FORMAT_ARGS = { wav: [], mp3: ['--mp3', '--mp3-bitrate', '320'], flac: ['--flac'] };
 const FORMAT_EXT = { wav: '.wav', mp3: '.mp3', flac: '.flac' };
-const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'four-stems', windowBounds: null };
+const DEFAULT_SETTINGS = { enginePath: '', defaultOutputDir: '', format: 'wav', performance: 'balanced', lastMode: 'four-stems', onboardingComplete: false, windowBounds: null };
 const MEDIA_COMPONENTS = {
   'darwin-arm64': {
     label: 'macOS Apple Silicon 媒体组件',

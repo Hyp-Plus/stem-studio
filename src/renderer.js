@@ -7,6 +7,7 @@ const state = {
   stemOptions: null,
   jobs: []
 };
+let onboardingSettings = null;
 const $ = (id) => document.getElementById(id);
 const MEDIA_EXTENSIONS = ['wav', 'mp3', 'flac', 'm4a', 'aac', 'ogg', 'mp4', 'mov', 'mkv', 'm4v'];
 const STATUS_LABELS = { pending: '等待中', running: '处理中', done: '完成', error: '失败', cancelled: '已取消' };
@@ -39,6 +40,58 @@ function updateFirstRunHint() {
     ? '高质量六轨会占用更多时间和内存；首次使用会下载约 52 MB 模型。'
     : '标准四轨适合首次体验；首次使用会下载约 80 MB 模型。';
 }
+
+function onboardingRow(id, stateName, text, buttonText, disabled = false) {
+  const row = $(`onboarding-${id}-row`);
+  const textNode = $(`onboarding-${id}-text`);
+  const button = $(`onboarding-${id}-button`);
+  row.dataset.state = stateName;
+  textNode.textContent = text;
+  if (buttonText == null) button.hidden = true;
+  else { button.hidden = false; button.textContent = buttonText; button.disabled = disabled; }
+}
+
+async function refreshOnboarding() {
+  if (!$('onboarding') || $('onboarding').hidden) return;
+  const [engine, models, media] = await Promise.all([
+    window.stemStudio.engineStatus(), window.stemStudio.modelsStatus(), window.stemStudio.mediaStatus()
+  ]).catch(() => []);
+  if (engine) onboardingRow('engine', engine.available ? 'ready' : 'needs-action', engine.available ? '已就绪，可在本机离线分离。' : '未找到引擎。请选择已安装的 Demucs 可执行文件。', engine.available ? null : '选择引擎');
+  const standard = models && models.find((item) => item.name === 'htdemucs');
+  if (standard) {
+    const detail = standard.ready ? '已下载并校验，可立即使用。'
+      : standard.downloading ? `正在下载并校验：${standard.percent || 0}%` : `约 ${formatMb(standard.totalBytes)}；用于人声、鼓、贝斯与其他音轨。`;
+    onboardingRow('model', standard.ready ? 'ready' : (standard.downloading ? 'running' : 'optional'), detail, standard.ready ? null : (standard.downloading ? '下载中…' : (standard.partBytes ? '继续下载' : '下载模型')), Boolean(standard.downloading));
+  }
+  if (media) {
+    const detail = media.ready ? '已安装并校验，可处理视频并导出混音。'
+      : media.unsupported ? '当前平台暂不提供一键媒体组件；普通音频仍可使用。'
+        : (media.downloading ? `正在下载并校验：${media.percent || 0}%` : '需要视频输入或导出混音时再安装。');
+    onboardingRow('media', media.ready ? 'ready' : (media.downloading ? 'running' : 'optional'), detail, media.ready || media.unsupported ? null : (media.downloading ? '安装中…' : '按需安装'), Boolean(media.downloading));
+  }
+}
+
+function closeOnboarding() {
+  $('onboarding').hidden = true;
+  window.stemStudio.setSettings({ onboardingComplete: true });
+}
+
+$('onboarding-skip-button').addEventListener('click', closeOnboarding);
+$('onboarding-finish-button').addEventListener('click', async () => {
+  closeOnboarding();
+  const files = await window.stemStudio.pickInput();
+  if (files && files.length) addFiles(files);
+});
+$('onboarding-engine-button').addEventListener('click', async () => {
+  const enginePath = await window.stemStudio.pickEngine();
+  if (enginePath) { $('engine-path').textContent = enginePath; checkEngine(); refreshOnboarding(); }
+});
+$('onboarding-model-button').addEventListener('click', () => window.stemStudio.modelDownload('htdemucs').catch((error) => {
+  $('onboarding-notice').textContent = `模型下载失败：${error.message}`;
+}));
+$('onboarding-media-button').addEventListener('click', () => window.stemStudio.mediaInstall().catch((error) => {
+  $('onboarding-notice').textContent = `媒体组件安装失败：${error.message}`;
+}));
 
 // ---------- 文件列表 ----------
 function renderPendingFiles() {
@@ -354,6 +407,7 @@ $('media-install-button').addEventListener('click', () => window.stemStudio.medi
   renderMedia({ error: error.message });
 }));
 window.stemStudio.onMediaProgress(renderMedia);
+window.stemStudio.onMediaProgress(refreshOnboarding);
 $('update-button').addEventListener('click', async () => {
   const button = $('update-button');
   button.disabled = true;
@@ -420,6 +474,7 @@ window.stemStudio.onModelProgress((status) => {
   renderModels();
   if (status.error) setNotice(`模型下载：${status.error}`, true);
   else if (status.info) setNotice(`${status.label}：${status.info}`);
+  refreshOnboarding();
 });
 
 // ---------- 分离工作台 ----------
@@ -694,12 +749,14 @@ async function checkEngine() {
       window.stemStudio.stemOptions()
     ]);
     applySettings(settings);
+    onboardingSettings = settings;
     state.stemOptions = stemOptions;
     renderStems();
     updateFirstRunHint();
     refreshHistory();
     refreshModels();
     refreshMedia();
+    if (!settings.onboardingComplete) { $('onboarding').hidden = false; refreshOnboarding(); }
     window.stemStudio.appVersion().then((version) => { $('app-version').textContent = `v${version}`; }).catch(() => {});
   } catch { /* 初始化失败不阻塞界面 */ }
   checkEngine();
