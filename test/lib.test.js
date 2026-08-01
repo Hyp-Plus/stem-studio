@@ -219,3 +219,9 @@ test('buildMixArgs：wav 输出使用 float32 编码保持无损', () => {
   const args = lib.buildMixArgs([{ id: 'a', path: '/a.wav' }], { a: 1 }, '/o.wav');
   assert.ok(args.includes('-c:a') && args.includes('pcm_f32le'));
 });
+
+test('projectNameFromInputs：单文件使用无扩展名，批量与空项目有稳定命名', () => {
+  assert.equal(lib.projectNameFromInputs(['/音乐/我的歌.flac']), '我的歌');
+  assert.equal(lib.projectNameFromInputs(['C:\\music\\demo.wav', 'C:\\music\\demo-2.wav']), '批量项目 · 2 个素材');
+  assert.equal(lib.projectNameFromInputs([]), '未命名项目');
+});

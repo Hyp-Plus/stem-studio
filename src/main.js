@@ -15,7 +15,7 @@ const authorizedOutputDirs = new Set();
 const authorizedStemFiles = new Set();
 
 const lib = require('./lib');
-const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS, MODEL_FILES, MEDIA_COMPONENTS } = lib;
+const { MODEL_STEMS, STEM_LABELS, FORMAT_EXT, DEFAULT_SETTINGS, MODEL_FILES, MEDIA_COMPONENTS, projectNameFromInputs } = lib;
 const MIN_FREE_DISK_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
 // ---------- 设置持久化 ----------
@@ -52,6 +52,118 @@ function appendHistory(entry) {
     fs.mkdirSync(path.dirname(historyFile()), { recursive: true });
     fs.writeFileSync(historyFile(), JSON.stringify(next, null, 2));
   } catch { /* 历史记录失败不影响主流程 */ }
+}
+
+// ---------- 本地项目库 ----------
+// 项目只保存素材路径、处理参数与结果索引；原始媒体和 stem 始终留在用户自己的目录中。
+function projectsFile() { return path.join(app.getPath('userData'), 'projects.json'); }
+
+function loadProjects() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(projectsFile(), 'utf8'));
+    return Array.isArray(parsed) ? parsed.filter((project) => project && typeof project.id === 'string') : [];
+  } catch { return []; }
+}
+
+function saveProjects(projects) {
+  fs.mkdirSync(path.dirname(projectsFile()), { recursive: true });
+  fs.writeFileSync(projectsFile(), JSON.stringify(projects.slice(0, 100), null, 2));
+  return projects;
+}
+
+function projectSummary(project) {
+  return {
+    id: project.id,
+    name: project.name,
+    status: project.status,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    inputCount: Array.isArray(project.inputs) ? project.inputs.length : 0,
+    resultCount: Array.isArray(project.results) ? project.results.filter((item) => item.status === 'done' && item.outputDir).length : 0,
+    results: Array.isArray(project.results) ? project.results.map((item) => ({
+      jobId: item.jobId, name: item.name, status: item.status, message: item.message || null,
+      outputDir: item.outputDir || null, finishedAt: item.finishedAt || null
+    })) : []
+  };
+}
+
+function updateProject(projectId, mutate) {
+  const projects = loadProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+  if (index < 0) return null;
+  mutate(projects[index]);
+  projects[index].updatedAt = new Date().toISOString();
+  try { saveProjects(projects); } catch { return null; }
+  return projects[index];
+}
+
+function createProject(payload = {}) {
+  const inputs = Array.isArray(payload.inputs) ? payload.inputs.filter((item) => typeof item === 'string' && item) : [];
+  const now = new Date().toISOString();
+  const project = {
+    id: crypto.randomUUID(),
+    name: String(payload.name || '').trim().slice(0, 80) || projectNameFromInputs(inputs),
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+    inputs: inputs.map((input) => ({ name: path.basename(input), path: input })),
+    settings: {},
+    results: [],
+    exports: []
+  };
+  const projects = loadProjects();
+  projects.unshift(project);
+  saveProjects(projects);
+  return project;
+}
+
+function prepareProjectForRun(payload) {
+  const requestedId = typeof payload.projectId === 'string' ? payload.projectId : '';
+  let project = requestedId ? loadProjects().find((item) => item.id === requestedId) : null;
+  if (!project) project = createProject({ inputs: payload.inputs });
+  const uniqueInputs = new Map((project.inputs || []).map((input) => [input.path, input]));
+  for (const input of payload.inputs) uniqueInputs.set(input, { name: path.basename(input), path: input });
+  const settings = loadSettings();
+  return updateProject(project.id, (item) => {
+    item.inputs = Array.from(uniqueInputs.values());
+    item.settings = { mode: payload.mode, stems: payload.stems || null, output: payload.output || null, format: settings.format, performance: settings.performance };
+    if (item.name === '未命名项目' && payload.inputs.length) item.name = projectNameFromInputs(payload.inputs);
+    item.status = 'processing';
+  }) || project;
+}
+
+function refreshProjectStatus(project, projectId) {
+  const jobs = queue.filter((job) => job.projectId === projectId);
+  if (jobs.some((job) => ['pending', 'running'].includes(job.status))) return 'processing';
+  if (jobs.some((job) => ['error', 'cancelled'].includes(job.status))) return 'needs-attention';
+  return jobs.some((job) => job.status === 'done') ? 'completed' : project.status || 'draft';
+}
+
+function recordProjectResult(job, status, message, outputDir) {
+  if (!job.projectId) return;
+  updateProject(job.projectId, (project) => {
+    const results = Array.isArray(project.results) ? project.results : [];
+    const record = { jobId: job.id, name: path.basename(job.input), input: job.input, status, message: message || null, outputDir: outputDir || null, finishedAt: new Date().toISOString() };
+    const index = results.findIndex((item) => item.jobId === job.id);
+    if (index >= 0) results[index] = record;
+    else results.unshift(record);
+    project.results = results.slice(0, 100);
+    project.status = refreshProjectStatus(project, job.projectId);
+  });
+}
+
+function recordProjectExport(projectId, entry) {
+  if (!projectId) return;
+  updateProject(projectId, (project) => {
+    project.exports = [{ ...entry, createdAt: new Date().toISOString() }, ...(project.exports || [])].slice(0, 100);
+  });
+}
+
+function projectIdForOutputDir(outputDir) {
+  if (!outputDir) return null;
+  const target = path.resolve(outputDir);
+  const project = loadProjects().find((item) => (item.results || []).some((result) => result.outputDir && path.resolve(result.outputDir) === target));
+  return project ? project.id : null;
 }
 
 function authorizeOutputDir(dir) {
@@ -479,6 +591,7 @@ function queueSnapshot() {
       status: job.status,
       percent: job.percent,
       message: job.message,
+      projectId: job.projectId || null,
       outputDir: job.outputDir || null
     }))
   };
@@ -521,6 +634,7 @@ function finishJob(job, status, message, outputDir) {
     name: path.basename(job.input),
     input: job.input,
     mode: job.mode,
+    projectId: job.projectId || null,
     status,
     // 保存失败原因，供历史列表展示
     message: status === 'error' ? message : null,
@@ -529,6 +643,7 @@ function finishJob(job, status, message, outputDir) {
     finishedAt: job.finishedAt,
     durationMs: job.startedAt ? job.finishedAt - job.startedAt : null
   });
+  recordProjectResult(job, status, message, outputDir);
   current = null;
   currentProc = null;
   broadcastQueue();
@@ -691,6 +806,16 @@ ipcMain.handle('clear-history', () => {
 
 ipcMain.handle('get-queue', () => queueSnapshot());
 
+ipcMain.handle('list-projects', (event) => {
+  requireTrustedSender(event);
+  return loadProjects().sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))).map(projectSummary);
+});
+
+ipcMain.handle('create-project', (event, payload) => {
+  requireTrustedSender(event);
+  return projectSummary(createProject(payload));
+});
+
 ipcMain.handle('start-separation', async (event, options) => {
   requireTrustedSender(event);
   const inputs = Array.isArray(options && options.inputs)
@@ -722,10 +847,19 @@ ipcMain.handle('start-separation', async (event, options) => {
   // 空闲且没有待处理任务时，视为开始新一批，清掉上一批的展示项
   if (!current && !queue.some((job) => job.status === 'pending')) queue = [];
 
+  const project = prepareProjectForRun({
+    projectId: options && options.projectId,
+    inputs,
+    mode,
+    stems: options && options.stems,
+    output: options && options.output
+  });
+
   for (const input of inputs) {
     queue.push({
       id: ++jobCounter,
       input,
+      projectId: project.id,
       output: (options && options.output) || null,
       mode,
       stems: (options && options.stems) || null,
@@ -739,7 +873,7 @@ ipcMain.handle('start-separation', async (event, options) => {
   try { saveSettings({ lastMode: mode }); } catch { /* non-fatal */ }
   broadcastQueue();
   processQueue();
-  return { queued: inputs.length };
+  return { queued: inputs.length, project: projectSummary(project) };
 });
 
 ipcMain.handle('cancel-separation', () => {
@@ -867,7 +1001,7 @@ ipcMain.handle('read-audio-file', async (event, filePath) => {
 // 按工作台当前增益混音导出（使用用户系统安装的 FFmpeg）
 ipcMain.handle('export-mix', async (event, payload) => {
   requireTrustedSender(event);
-  const { stems, gains, defaultName } = payload || {};
+  const { stems, gains, defaultName, projectId } = payload || {};
   if (!Array.isArray(stems) || !stems.length) return { error: '没有可导出的音轨。' };
   if (!stems.every((stem) => stem && STEM_ORDER.includes(stem.id) && authorizedStemFiles.has(path.resolve(stem.path || '')))) {
     return { error: '音轨来源无效，请从已完成的分离结果重新打开工作台。' };
@@ -894,7 +1028,11 @@ ipcMain.handle('export-mix', async (event, payload) => {
     child.stderr.on('data', (chunk) => { log += chunk; });
     child.on('error', (error) => resolve({ error: `无法启动 FFmpeg：${error.message}` }));
     child.on('close', (code) => {
-      if (code === 0) resolve({ outPath: filePath });
+      if (code === 0) {
+        const sourceDir = path.dirname(stems[0].path);
+        recordProjectExport(projectId || projectIdForOutputDir(sourceDir), { outPath: filePath, name: path.basename(filePath), sourceDir, gains });
+        resolve({ outPath: filePath });
+      }
       else resolve({ error: `混音导出失败（FFmpeg 退出码 ${code}）：${log.slice(-200)}` });
     });
   });
@@ -928,8 +1066,12 @@ function createWindow() {
 }
 
 function stopEverything() {
+  const affectedProjects = new Set(queue.filter((job) => ['pending', 'running'].includes(job.status)).map((job) => job.projectId).filter(Boolean));
   for (const job of queue) {
     if (job.status === 'pending') { job.status = 'cancelled'; job.message = '已取消'; }
+  }
+  for (const projectId of affectedProjects) {
+    updateProject(projectId, (project) => { project.status = 'needs-attention'; });
   }
   if (current) {
     current.cancelled = true;

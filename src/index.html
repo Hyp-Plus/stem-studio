@@ -28,6 +28,10 @@
       <div id="page-main" class="page">
       <div class="edit-shell">
         <aside class="media-library">
+          <section class="project-library" aria-label="项目库">
+            <div class="pane-title"><span>项目库</span><button id="new-project-button" class="icon-button" title="新建项目">＋</button></div>
+            <div id="project-list" class="project-list"><p class="file-list-empty">项目会在首次分离时自动创建</p></div>
+          </section>
           <div class="pane-title"><span>媒体库</span><button id="input-button" class="icon-button" title="导入文件">＋</button></div>
           <div id="file-list" class="file-list"><p class="file-list-empty">拖入音频或视频<br />开始一个项目</p></div>
           <div class="library-actions"><button id="input-button-copy">导入媒体</button><button id="clear-files-button" hidden>清空</button></div>
@@ -38,7 +42,11 @@
           </details>
         </aside>
         <section class="canvas-pane">
-          <div class="canvas-toolbar"><span>项目 / 未命名</span><span class="canvas-status">本地处理</span></div>
+          <div class="canvas-toolbar"><span id="project-label">项目 / 未命名</span><span class="canvas-status">本地处理</span></div>
+          <section id="project-strip" class="project-strip" aria-live="polite" hidden>
+            <div><b id="project-strip-title">未命名项目</b><small id="project-strip-meta"></small></div>
+            <div id="project-results" class="project-results"></div>
+          </section>
           <section class="workbench-panel" aria-label="分离工作台">
             <header class="workbench-head">
               <div><h2 id="wb-title">分离工作台</h2><p id="wb-subtitle" class="wb-subtitle">导入一段媒体，分离结果会直接出现在这里。</p></div>

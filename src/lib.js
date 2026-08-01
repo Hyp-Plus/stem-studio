@@ -199,6 +199,16 @@ function isNewerVersion(candidate, current) {
   return aMajor !== bMajor ? aMajor > bMajor : aMinor !== bMinor ? aMinor > bMinor : aPatch > bPatch;
 }
 
+// 项目默认名称：单个素材用文件名，批量素材明确数量；只处理展示文本，不读取文件系统。
+function projectNameFromInputs(inputs) {
+  const files = Array.isArray(inputs) ? inputs.filter((item) => typeof item === 'string' && item) : [];
+  if (!files.length) return '未命名项目';
+  if (files.length > 1) return `批量项目 · ${files.length} 个素材`;
+  const basename = files[0].split(/[\\/]/).at(-1) || '未命名项目';
+  const dot = basename.lastIndexOf('.');
+  return dot > 0 ? basename.slice(0, dot) : basename;
+}
+
 module.exports = {
   MODEL_STEMS,
   STEM_LABELS,
@@ -222,5 +232,6 @@ module.exports = {
   classifyDownloadFailure,
   computeEffectiveGains,
   buildMixArgs,
-  isNewerVersion
+  isNewerVersion,
+  projectNameFromInputs
 };

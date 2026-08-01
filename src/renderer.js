@@ -5,12 +5,15 @@ const state = {
   output: null,
   lastOutput: null,
   stemOptions: null,
-  jobs: []
+  jobs: [],
+  projects: [],
+  activeProjectId: null
 };
 let onboardingSettings = null;
 const $ = (id) => document.getElementById(id);
 const MEDIA_EXTENSIONS = ['wav', 'mp3', 'flac', 'm4a', 'aac', 'ogg', 'mp4', 'mov', 'mkv', 'm4v'];
 const STATUS_LABELS = { pending: '等待中', running: '处理中', done: '完成', error: '失败', cancelled: '已取消' };
+const PROJECT_STATUS_LABELS = { draft: '待处理', processing: '处理中', completed: '已完成', 'needs-attention': '需处理' };
 let mediaInstallRequestedFromWorkbench = false;
 
 function mode() { return document.querySelector('input[name="mode"]:checked').value; }
@@ -64,6 +67,69 @@ function openRecovery(action) {
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   if (target !== settings) target.focus({ preventScroll: true });
 }
+
+function projectStatusClass(status) {
+  return status === 'completed' ? 'done' : status === 'processing' ? 'running' : status === 'needs-attention' ? 'error' : 'pending';
+}
+
+function activeProject() { return state.projects.find((project) => project.id === state.activeProjectId) || null; }
+
+function renderProjectStrip() {
+  const project = activeProject();
+  const strip = $('project-strip');
+  strip.hidden = !project;
+  if (!project) {
+    $('project-label').textContent = '项目 / 未命名';
+    return;
+  }
+  $('project-label').textContent = `项目 / ${project.name}`;
+  $('project-strip-title').textContent = project.name;
+  const completed = project.results.filter((item) => item.status === 'done' && item.outputDir).length;
+  $('project-strip-meta').textContent = `${project.inputCount} 个素材 · ${PROJECT_STATUS_LABELS[project.status] || '待处理'}${completed ? ` · ${completed} 个结果` : ''}`;
+  const results = project.results.filter((item) => item.status === 'done' && item.outputDir).slice(0, 4);
+  $('project-results').innerHTML = results.length
+    ? results.map((item) => `<button class="project-result" data-dir="${escapeHtml(item.outputDir)}" data-name="${escapeHtml(item.name)}">${escapeHtml(item.name)}</button>`).join('')
+    : '<span class="project-results-empty">结果会出现在这里</span>';
+  $('project-results').querySelectorAll('.project-result').forEach((button) => button.addEventListener('click', () =>
+    openWorkbench(button.dataset.dir, button.dataset.name, project.id)));
+}
+
+function renderProjects() {
+  const list = $('project-list');
+  if (!state.projects.length) {
+    list.innerHTML = '<p class="file-list-empty">项目会在首次分离时自动创建</p>';
+    renderProjectStrip();
+    return;
+  }
+  list.innerHTML = state.projects.slice(0, 12).map((project) => {
+    const selected = project.id === state.activeProjectId ? ' is-active' : '';
+    const count = project.resultCount ? ` · ${project.resultCount} 个结果` : '';
+    return `<button class="project-row${selected}" data-id="${project.id}"><span><b>${escapeHtml(project.name)}</b><small>${project.inputCount} 个素材${count}</small></span><i class="chip ${projectStatusClass(project.status)}">${PROJECT_STATUS_LABELS[project.status] || '待处理'}</i></button>`;
+  }).join('');
+  list.querySelectorAll('.project-row').forEach((button) => button.addEventListener('click', () => {
+    state.activeProjectId = button.dataset.id;
+    renderProjects();
+  }));
+  renderProjectStrip();
+}
+
+async function refreshProjects(preferredId = state.activeProjectId) {
+  try {
+    state.projects = await window.stemStudio.listProjects();
+    if (preferredId && state.projects.some((project) => project.id === preferredId)) state.activeProjectId = preferredId;
+    else if (state.activeProjectId && !state.projects.some((project) => project.id === state.activeProjectId)) state.activeProjectId = null;
+    else if (!state.activeProjectId && state.projects.length) state.activeProjectId = state.projects[0].id;
+    renderProjects();
+  } catch { setNotice('项目库读取失败，但不影响当前处理。', true); }
+}
+
+$('new-project-button').addEventListener('click', async () => {
+  try {
+    const project = await window.stemStudio.createProject({});
+    await refreshProjects(project.id);
+    setNotice('已创建项目；接下来导入媒体即可加入其中。');
+  } catch (error) { setNotice(`新建项目失败：${error.message}`, true); }
+});
 
 function updateFirstRunHint() {
   const sixStems = mode() === 'six-stems';
@@ -162,7 +228,7 @@ function renderQueue() {
   list.innerHTML = state.jobs.map((job) => {
     const percent = job.status === 'running' ? ` ${job.percent || 0}%` : '';
     const open = job.status === 'done' && job.outputDir
-      ? `<button class="row-bench" data-dir="${escapeHtml(job.outputDir)}" data-name="${escapeHtml(job.name)}">工作台</button><button class="row-open" data-dir="${escapeHtml(job.outputDir)}">打开</button>` : '';
+      ? `<button class="row-bench" data-dir="${escapeHtml(job.outputDir)}" data-name="${escapeHtml(job.name)}" data-project="${escapeHtml(job.projectId || '')}">工作台</button><button class="row-open" data-dir="${escapeHtml(job.outputDir)}">打开</button>` : '';
     const controls = ['pending', 'running'].includes(job.status)
       ? `<button class="row-cancel" data-id="${job.id}">取消</button>`
       : ['error', 'cancelled'].includes(job.status)
@@ -176,7 +242,7 @@ function renderQueue() {
     return `<div class="row"><span class="row-name">${escapeHtml(job.name)}</span><span class="chip ${job.status}">${STATUS_LABELS[job.status] || job.status}${percent}</span>${controls}${recovery}${open}${detail}</div>`;
   }).join('');
   list.querySelectorAll('.row-open').forEach((button) => button.addEventListener('click', () => window.stemStudio.openPath(button.dataset.dir)));
-  list.querySelectorAll('.row-bench').forEach((button) => button.addEventListener('click', () => openWorkbench(button.dataset.dir, button.dataset.name)));
+  list.querySelectorAll('.row-bench').forEach((button) => button.addEventListener('click', () => openWorkbench(button.dataset.dir, button.dataset.name, button.dataset.project)));
   list.querySelectorAll('.row-cancel').forEach((button) => button.addEventListener('click', () => window.stemStudio.cancelJob(button.dataset.id)));
   list.querySelectorAll('.row-retry').forEach((button) => button.addEventListener('click', async () => {
     try { await window.stemStudio.retryJob(button.dataset.id); } catch (error) { setNotice(error.message, true); }
@@ -195,7 +261,8 @@ async function addFiles(paths) {
   if (state.running) {
     // 任务进行中：直接加入主进程队列
     try {
-      await window.stemStudio.start({ inputs: fresh, output: state.output, mode: mode(), stems: selectedStems() });
+      const result = await window.stemStudio.start({ inputs: fresh, output: state.output, mode: mode(), stems: selectedStems(), projectId: state.activeProjectId });
+      if (result.project) refreshProjects(result.project.id);
       setNotice(`已加入队列：${fresh.length} 个文件。`);
     } catch (error) { setNotice(error.message, true); }
     return;
@@ -276,7 +343,8 @@ async function startSeparation() {
     $('progress-area').hidden = false; $('open-button').hidden = true;
     setRunning(true);
     state.queueMode = true;
-    await window.stemStudio.start({ inputs: state.files, output: state.output, mode: mode(), stems });
+    const result = await window.stemStudio.start({ inputs: state.files, output: state.output, mode: mode(), stems, projectId: state.activeProjectId });
+    if (result.project) await refreshProjects(result.project.id);
     state.files = [];
   } catch (error) { setRunning(false); state.queueMode = false; setNotice(error.message, true); }
 }
@@ -370,9 +438,10 @@ window.stemStudio.onQueueFinished((summary) => {
     ? `全部完成：${summary.doneCount} 个文件的音轨已导出。`
     : `完成 ${summary.doneCount}/${summary.total} 个，${failed} 个未完成（详见列表）。`, failed !== 0);
   refreshHistory();
+  refreshProjects(state.activeProjectId);
   if (summary.total === 1 && summary.doneCount === 1 && summary.lastOutput) {
     const finished = state.jobs.find((job) => job.status === 'done' && job.outputDir === summary.lastOutput);
-    openWorkbench(summary.lastOutput, finished ? finished.name : '分离结果');
+    openWorkbench(summary.lastOutput, finished ? finished.name : '分离结果', finished ? finished.projectId : state.activeProjectId);
   }
 });
 
@@ -541,7 +610,7 @@ window.stemStudio.onModelProgress((status) => {
 // solo/静音/音量的实际增益由 lib.computeEffectiveGains 同款规则计算（此处内联同步实现）。
 const wb = {
   ctx: null, tracks: [], sources: [], duration: 0,
-  playing: false, exporting: false, startedAt: 0, offset: 0, raf: 0, dir: null, title: ''
+  playing: false, exporting: false, startedAt: 0, offset: 0, raf: 0, dir: null, title: '', projectId: null
 };
 
 function wbEffectiveGains() {
@@ -706,16 +775,19 @@ function setWorkbenchReady(ready) {
   $('wb-export').disabled = !ready || wb.exporting;
 }
 
-async function openWorkbench(dir, title) {
+async function openWorkbench(dir, title, projectId = state.activeProjectId) {
   // 同一目录的会话还在：中央画布已经是工作台，无需切换页面。
-  if (wb.dir === dir && wb.tracks.length) return;
+  if (wb.dir === dir && wb.tracks.length) {
+    if (projectId) wb.projectId = projectId;
+    return;
+  }
   const stems = await window.stemStudio.listStems(dir);
   if (!stems.length) return setNotice('该目录里没有找到可加载的音轨文件。', true);
   // 换了目录：释放上一个会话
   wbPause();
   wb.tracks.forEach((track) => track.gainNode && track.gainNode.disconnect());
   wb.tracks = [];
-  wb.dir = dir; wb.title = title || dir.split(/[\\/]/).at(-1);
+  wb.dir = dir; wb.title = title || dir.split(/[\\/]/).at(-1); wb.projectId = projectId || null;
   $('wb-title').textContent = `分离工作台 · ${wb.title}`;
   $('wb-subtitle').textContent = dir;
   setWorkbenchReady(false);
@@ -769,7 +841,8 @@ $('wb-export').addEventListener('click', async () => {
     const result = await window.stemStudio.exportMix({
       stems: wb.tracks.map((track) => ({ id: track.id, path: track.path })),
       gains,
-      defaultName: `${wb.title}-${suffix}.${format}`
+      defaultName: `${wb.title}-${suffix}.${format}`,
+      projectId: wb.projectId
     });
     if (result.cancelled) return wbSetNotice('');
     if (result.needsMedia) {
@@ -837,6 +910,7 @@ async function checkEngine() {
     renderStems();
     updateFirstRunHint();
     refreshHistory();
+    refreshProjects();
     refreshModels();
     refreshMedia();
     if (!settings.onboardingComplete) { $('onboarding').hidden = false; refreshOnboarding(); }

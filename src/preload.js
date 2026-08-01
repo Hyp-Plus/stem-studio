@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('stemStudio', {
   getHistory: () => ipcRenderer.invoke('get-history'),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   getQueue: () => ipcRenderer.invoke('get-queue'),
+  listProjects: () => ipcRenderer.invoke('list-projects'),
+  createProject: (payload) => ipcRenderer.invoke('create-project', payload),
   start: (options) => ipcRenderer.invoke('start-separation', options),
   cancel: () => ipcRenderer.invoke('cancel-separation'),
   cancelJob: (id) => ipcRenderer.invoke('cancel-job', id),

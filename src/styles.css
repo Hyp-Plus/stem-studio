@@ -53,3 +53,16 @@ h1 { font-size:14px; letter-spacing:-.02em; } main > header p { margin-top:1px; 
 .workbench-progress { padding:10px 10px 12px; }
 .progress-context { display:flex; flex-wrap:wrap; gap:5px 10px; align-items:baseline; color:#dce5ff; font-size:11px; }
 .progress-context span { color:#aeb9ce; font-size:10px; }
+.project-library { margin:-2px -1px 14px; padding:0 1px 14px; border-bottom:1px solid var(--line); }
+.project-list { display:flex; flex-direction:column; gap:5px; max-height:190px; margin-top:8px; overflow:auto; }
+.project-list:has(.file-list-empty) { min-height:54px; padding:8px; border:1px dashed #424b58; border-radius:5px; background:#181b20; }
+.project-list .file-list-empty { font-size:10px; }
+.project-list .file-list-empty::before { display:none; }
+.project-row { display:flex; width:100%; align-items:center; gap:6px; padding:7px; text-align:left; background:#20242b; }
+.project-row:hover:not(:disabled),.project-row.is-active { border-color:#5c7fe0; background:#27324a; }
+.project-row span { min-width:0; flex:1; }.project-row b,.project-row small { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.project-row b { font-size:10px; }.project-row small { margin-top:2px; color:var(--muted); font-size:9px; }
+.project-row .chip { flex:0 0 auto; }
+.project-strip { display:flex; align-items:center; gap:14px; min-height:58px; padding:10px 16px; border-bottom:1px solid var(--line); background:#1b2028; }
+.project-strip > div:first-child { min-width:110px; }.project-strip b,.project-strip small { display:block; }.project-strip b { overflow:hidden; font-size:11px; white-space:nowrap; text-overflow:ellipsis; }.project-strip small { margin-top:3px; color:var(--muted); font-size:10px; }
+.project-results { display:flex; min-width:0; flex:1; justify-content:flex-end; gap:5px; overflow:auto; }.project-result { max-width:150px; overflow:hidden; padding:5px 7px; color:#c8d6ff; font-size:10px; white-space:nowrap; text-overflow:ellipsis; background:#25304a; }.project-results-empty { color:var(--muted); font-size:10px; }
